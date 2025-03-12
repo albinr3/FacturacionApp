@@ -1,20 +1,33 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import './gesture-handler';
 
-export default function App() {
+import AppNavigation from './navigation/AppNavigation';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+//import * as Sentry from '@sentry/react-native';
+
+// Sentry.init({
+//   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+//   enableInExpoDevelopment: true
+//   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+//   // enableSpotlight: __DEV__,
+// });
+import { UserProvider } from './navigation/UserContext'; // Importa tu contexto
+import React, { useEffect } from "react";
+
+function App() {
+  useEffect(() => {
+    // Descomenta una de estas líneas para probar
+     //throw new Error("My first Sentry error!");
+    // Sentry.nativeCrash();
+  }, []);
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <UserProvider>
+        <AppNavigation />
+      </UserProvider>
+    </GestureHandlerRootView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default App;
+
