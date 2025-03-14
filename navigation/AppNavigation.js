@@ -16,7 +16,7 @@ const MainStack = () => (
       component={Home}
       options={{ headerShown: false }}
     />
-    <Stack.Screen name= "Facturacion" component={Facturacion}/>
+    <Stack.Screen name= "Facturacion" component={Facturacion} options={{ headerShown: false }}/>
   </Stack.Navigator>
 );
 
