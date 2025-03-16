@@ -5,6 +5,7 @@ import { StyleSheet, Dimensions } from "react-native";
 
 import Home from "../screens/Home";
 import Facturacion from "../screens/Facturacion";
+import Cxc from "../screens/Cxc";
 
 const Stack = createNativeStackNavigator();
 const { width, height } = Dimensions.get("window");
@@ -17,6 +18,7 @@ const MainStack = () => (
       options={{ headerShown: false }}
     />
     <Stack.Screen name= "Facturacion" component={Facturacion} options={{ headerShown: false }}/>
+    <Stack.Screen name= "Cxc" component={Cxc} options={{ headerShown: false }}/>
   </Stack.Navigator>
 );
 

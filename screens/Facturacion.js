@@ -10,28 +10,126 @@ import {
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Keyboard } from "react-native";
 
-const Facturacion = () => {
-  const [visible, setVisible] = useState(false);
+const Facturacion = ({ navigation }) => {
+  const [visible, setVisible] = useState(false); // Estado del modal
+  const [visible2, setVisible2] = useState(false); // Estado del modal
+  const [buscarTexto, setBuscarTexto] = useState("");
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+  const [clientesFiltrados, setClientesFiltrados] = useState(clientes);
+  const [productoSeleccionado, setProductoSeleccionado] = useState(null);
+  const [productosFiltrados, setProductosFiltrados] = useState(productos);
+  const [buscarTextoProducto, setBuscarTextoProducto] = useState("");
 
   // Lista de productos seleccionados
   const [productos, setProductos] = useState([
-    { id: "1", nombre: "Bocina neodimio", precio: 32.8, cantidad: 22 },
-    { id: "2", nombre: "Sueter XL Blanco", precio: 1000, cantidad: 15 },
-    { id: "3", nombre: "Bocina neodimio", precio: 32.8, cantidad: 22 },
-    { id: "4", nombre: "Sueter XL Blanco", precio: 1000, cantidad: 15 },
+    {
+      id: "1",
+      sku: 2018,
+      nombre: "Bocina neodimio",
+      ref: "YR-2018",
+      precio: 32.8,
+      cantidad: 22,
+    },
+    {
+      id: "2",
+      sku: 2019,
+      nombre: "Sueter XL Blanco",
+      ref: "YR-0909",
+      precio: 1000,
+      cantidad: 15,
+    },
+    {
+      id: "3",
+      sku: 3011,
+      nombre: "Bocina neodimio",
+      ref: "YR-FA-437",
+      precio: 32.8,
+      cantidad: 22,
+    },
+    {
+      id: "4",
+      sku: 4213,
+      nombre: "Sueter XL Blanco",
+      ref: "YR-10",
+      precio: 1000,
+      cantidad: 15,
+    },
   ]);
+
+  const clientes = [
+    {
+      id: "1",
+      nombre: "Juan Pérez",
+      telefono: "809-555-1234",
+      direccion: "Calle 10, Santo Domingo",
+    },
+    {
+      id: "2",
+      nombre: "María González",
+      telefono: "829-888-5678",
+      direccion: "Av. Principal, Santiago",
+    },
+    {
+      id: "3",
+      nombre: "Carlos Ramírez",
+      telefono: "849-777-9123",
+      direccion: "Calle B, La Vega",
+    },
+    {
+      id: "4",
+      nombre: "Ana López",
+      telefono: "809-333-4567",
+      direccion: "Calle C, San Cristóbal",
+    },
+    {
+      id: "5",
+      nombre: "Pedro Martínez",
+      telefono: "829-222-7890",
+      direccion: "Av. Duarte, Puerto Plata",
+    },
+  ];
 
   const totalCantidad = productos.reduce((acc, prod) => acc + prod.cantidad, 0);
 
+  const seleccionarCliente = (cliente) => {
+    setClienteSeleccionado(cliente); // 🔹 Guarda el cliente seleccionado
+    setVisible(false); // 🔹 Cierra el modal
+    setBuscarTexto(""); // 🔹 Limpia el texto del buscador
+    setClientesFiltrados(clientes); // 🔹 Restablece la lista completa de clientes
+    Keyboard.dismiss(); // 🔹 Oculta el teclado y quita el foco del TextInput
+  };
+
+  // Función para filtrar clientes en el modal
+  const filtrarClientes = (texto) => {
+    setBuscarTexto(texto);
+
+    // 🔹 Filtra la lista de clientes en tiempo real
+    const filtrados = clientes.filter((cliente) =>
+      cliente.nombre.toLowerCase().includes(texto.toLowerCase())
+    );
+
+    setClientesFiltrados(filtrados);
+  };
+
+  const seleccionarProducto = (producto) => {
+    setProductoSeleccionado(producto); // 🔹 Guarda el cliente seleccionado
+    setVisible2(false); // 🔹 Cierra el modal
+    setBuscarTextoProducto(""); // 🔹 Limpia el texto del buscador
+    setProductosFiltrados(productos); // 🔹 Restablece la lista completa de clientes
+    Keyboard.dismiss(); // 🔹 Oculta el teclado y quita el foco del TextInput
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-
       <View style={styles.headerConfig}>
-        <MaterialCommunityIcons
-          name="keyboard-backspace"
-          style={styles.iconTitle}
-        ></MaterialCommunityIcons>
+        <Pressable onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons
+            name="keyboard-backspace"
+            style={styles.iconTitle}
+          />
+        </Pressable>
         <Text style={styles.textTitle}>FACTURACION</Text>
         <MaterialCommunityIcons
           name="snowflake-variant"
@@ -49,33 +147,78 @@ const Facturacion = () => {
         <View style={styles.headerText}>
           <View style={styles.textBox}>
             <View style={styles.itemTextbox}>
-              <MaterialCommunityIcons
-                name="account"
-                style={styles.iconData}
-              ></MaterialCommunityIcons>
-              <Text style={styles.text}>Albin Rodriguez</Text>
+              <MaterialCommunityIcons name="account" style={styles.iconData} />
+              <Text style={styles.text}>
+                {clienteSeleccionado
+                  ? clienteSeleccionado.nombre
+                  : "Seleccione un Cliente"}
+              </Text>
             </View>
             <View style={styles.itemTextbox}>
-              <MaterialCommunityIcons
-                name="phone"
-                style={styles.iconData}
-              ></MaterialCommunityIcons>
-              <Text style={styles.text}>829-240-8542</Text>
+              <MaterialCommunityIcons name="phone" style={styles.iconData} />
+              <Text style={styles.text}>
+                {clienteSeleccionado ? clienteSeleccionado.telefono : "---"}
+              </Text>
             </View>
             <View style={styles.itemTextbox}>
-              <MaterialCommunityIcons
-                name="store"
-                style={styles.iconData}
-              ></MaterialCommunityIcons>
-              <Text style={styles.text}>C/ CIPRIANO BENCOSME, MOCA</Text>
+              <MaterialCommunityIcons name="store" style={styles.iconData} />
+              <Text style={styles.text}>
+                {clienteSeleccionado ? clienteSeleccionado.direccion : "---"}
+              </Text>
             </View>
           </View>
         </View>
       </View>
       <View style={styles.buscador}>
-        <TextInput editable placeholder="Buscar Cliente" style={{flex:1}}></TextInput>
+        <TextInput
+          editable
+          placeholder="Buscar Cliente"
+          style={{ flex: 1 }}
+          value={buscarTexto}
+          onChangeText={(texto) => {
+            setBuscarTexto(texto);
+            setVisible(true); // 🔹 Solo abre el modal
+            filtrarClientes(texto); // 🔹 Filtra directamente al escribir
+          }}
+        ></TextInput>
         <Pressable onPress={() => setVisible(true)} style={styles.buscadorIcon}>
-          <Modal visible={visible}></Modal>
+          <Modal visible={visible} animationType="slide" transparent={true}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                {/* 🔹 Aquí se busca a los clientes */}
+                <TextInput
+                  style={styles.inputBuscar}
+                  placeholder="Buscar cliente..."
+                  value={buscarTexto}
+                  onChangeText={filtrarClientes}
+                />
+
+                <FlatList
+                  data={clientesFiltrados}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={styles.itemCliente}
+                      onPress={() => seleccionarCliente(item)}
+                    >
+                      <Text style={styles.nombreCliente}>{item.nombre}</Text>
+                      <Text style={styles.infoCliente}>
+                        {item.telefono} - {item.direccion}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
+
+                <Pressable
+                  style={styles.botonCerrar}
+                  onPress={() => setVisible(false)}
+                >
+                  <Text style={styles.textoBotonCerrar}>Cerrar</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
+
           <MaterialCommunityIcons
             name="account-search-outline"
             style={styles.iconSearch}
@@ -91,6 +234,43 @@ const Facturacion = () => {
           <Text style={[styles.textBotones, { color: "black" }]}>
             Selec. Producto
           </Text>
+
+          <Modal visible={visible2} animationType="slide" transparent={true}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContent}>
+                {/* 🔹 Aquí se busca a los clientes */}
+                <TextInput
+                  style={styles.inputBuscar}
+                  placeholder="Buscar cliente..."
+                  value={buscarTexto}
+                  onChangeText={filtrarClientes}
+                />
+
+                <FlatList
+                  data={clientesFiltrados}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      style={styles.itemCliente}
+                      onPress={() => seleccionarCliente(item)}
+                    >
+                      <Text style={styles.nombreCliente}>{item.nombre}</Text>
+                      <Text style={styles.infoCliente}>
+                        {item.telefono} - {item.direccion}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
+
+                <Pressable
+                  style={styles.botonCerrar}
+                  onPress={() => setVisible2(false)}
+                >
+                  <Text style={styles.textoBotonCerrar}>Cerrar</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Modal>
         </Pressable>
         <Pressable style={styles.botones}>
           <MaterialCommunityIcons
@@ -125,9 +305,7 @@ const Facturacion = () => {
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
             <View style={styles.row}>
-              <Text style={[styles.cell, styles.cellNumero,]}>
-                {index + 1}
-              </Text>
+              <Text style={[styles.cell, styles.cellNumero]}>{index + 1}</Text>
               <Text style={[styles.cell, styles.cellDescripcion]}>
                 {item.nombre}
               </Text>
@@ -143,13 +321,7 @@ const Facturacion = () => {
 
         {/* Fila de Totales */}
         <View style={[styles.row, styles.totalRow]}>
-          <Text
-            style={[
-              styles.cell,
-              styles.cellNumero,
-              styles.totalText,
-            ]}
-          >
+          <Text style={[styles.cell, styles.cellNumero, styles.totalText]}>
             {productos.length}
           </Text>
           <Text style={[styles.cell, styles.cellDescripcion, styles.totalText]}>
@@ -163,6 +335,14 @@ const Facturacion = () => {
           </Text>
         </View>
       </View>
+
+      <Pressable style={styles.botonGuardar}>
+        <MaterialCommunityIcons
+          name="content-save"
+          style={styles.iconResumen}
+        ></MaterialCommunityIcons>
+        <Text style={styles.buttonText}>Guardar</Text>
+      </Pressable>
     </SafeAreaView>
   );
 };
@@ -190,18 +370,16 @@ const styles = StyleSheet.create({
   },
   headerText: {},
   textBox: {
-    marginLeft: 6,
+    minHeight: 60, // 🔹 Mantiene el tamaño mínimo del TextBox
     backgroundColor: "#fff",
     borderRadius: 10,
+    padding: 10,
+    justifyContent: "center", // 🔹 Centra el contenido verticalmente
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
     shadowRadius: 3.84,
     elevation: 5,
-    padding: 5,
   },
   itemTextbox: {
     flexDirection: "row",
@@ -214,6 +392,8 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 16,
+    minWidth: 232, // 🔹 Evita que el TextBox se haga muy pequeño en textos cortos
+    textAlignVertical: "center", // 🔹 Asegura alineación correcta
   },
   textTitle: {
     fontSize: 19,
@@ -332,13 +512,79 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 4,
-    marginBottom: 14
+    marginBottom: 14,
   },
   iconTitle: {
     color: "#0073c6",
-    fontSize: 22,
-   
-  }
+    fontSize: 28,
+  },
+  botonGuardar: {
+    borderRadius: 1,
+    backgroundColor: "#0073c6",
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    position: "absolute",
+    bottom: 20,
+    alignSelf: "center", // 🔹 Centrar el botón horizontalmente
+    borderRadius: 30,
+    elevation: 3, // Sombra en Android
+    shadowColor: "#000", // Sombra en iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginLeft: 2,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalContent: {
+    width: "90%",
+    backgroundColor: "white",
+    borderRadius: 10,
+    padding: 15,
+    alignItems: "center",
+  },
+  inputBuscar: {
+    width: "100%",
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
+    marginBottom: 10,
+  },
+  itemCliente: {
+    width: "100%",
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  nombreCliente: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  infoCliente: {
+    fontSize: 14,
+    color: "#555",
+  },
+  botonCerrar: {
+    backgroundColor: "#0073c6",
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 10,
+  },
+  textoBotonCerrar: {
+    color: "white",
+    fontWeight: "bold",
+  },
 });
 
 export default Facturacion;
