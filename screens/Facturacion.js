@@ -15,46 +15,232 @@ import { Keyboard } from "react-native";
 const Facturacion = ({ navigation }) => {
   const [visible, setVisible] = useState(false); // Estado del modal
   const [visible2, setVisible2] = useState(false); // Estado del modal
-  const [buscarTexto, setBuscarTexto] = useState("");
+  const [buscarTextoC, setBuscarTextoC] = useState("");
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [clientesFiltrados, setClientesFiltrados] = useState(clientes);
-  const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [productosFiltrados, setProductosFiltrados] = useState(productos);
   const [buscarTextoProducto, setBuscarTextoProducto] = useState("");
+  const [productosSeleccionados, setProductosSeleccionados] = useState([]);
+
+  const [cantidadesProductos, setCantidadesProductos] = useState({});
 
   // Lista de productos seleccionados
   const [productos, setProductos] = useState([
     {
       id: "1",
       sku: 2018,
-      nombre: "Bocina neodimio",
-      ref: "YR-2018",
+      descripcion: "Bocina neodimio",
+      ref: "YR-901",
       precio: 32.8,
       cantidad: 22,
+      existencia: 1432,
     },
     {
       id: "2",
       sku: 2019,
-      nombre: "Sueter XL Blanco",
+      descripcion: "Sueter XL Blanco",
       ref: "YR-0909",
       precio: 1000,
       cantidad: 15,
+      existencia: 4432,
     },
     {
       id: "3",
       sku: 3011,
-      nombre: "Bocina neodimio",
+      descripcion: "Bocina neodimio",
       ref: "YR-FA-437",
       precio: 32.8,
       cantidad: 22,
+      existencia: 340,
     },
     {
       id: "4",
       sku: 4213,
-      nombre: "Sueter XL Blanco",
+      descripcion: "Sueter XL Blanco",
       ref: "YR-10",
       precio: 1000,
       cantidad: 15,
+      existencia: 22,
+    },
+    {
+      id: 5,
+      sku: 5021,
+      descripcion: "Audífonos Bluetooth",
+      ref: "YR-BT-001",
+      precio: 250.5,
+      cantidad: 30,
+      existencia: 500,
+    },
+    {
+      id: 6,
+      sku: 5022,
+      descripcion: "Teclado mecánico RGB",
+      ref: "YR-KB-002",
+      precio: 850,
+      cantidad: 10,
+      existencia: 150,
+    },
+    {
+      id: 7,
+      sku: 5023,
+      descripcion: "Mouse inalámbrico",
+      ref: "YR-MS-003",
+      precio: 320.75,
+      cantidad: 25,
+      existencia: 300,
+    },
+    {
+      id: 8,
+      sku: 5024,
+      descripcion: "Monitor LED 24 pulgadas",
+      ref: "YR-MN-004",
+      precio: 4200,
+      cantidad: 5,
+      existencia: 80,
+    },
+    {
+      id: 9,
+      sku: 5025,
+      descripcion: "Cable HDMI 2M",
+      ref: "YR-CB-005",
+      precio: 120.5,
+      cantidad: 50,
+      existencia: 1000,
+    },
+    {
+      id: 10,
+      sku: 5026,
+      descripcion: "Mochila para laptop",
+      ref: "YR-MP-006",
+      precio: 540,
+      cantidad: 20,
+      existencia: 250,
+    },
+    {
+      id: 11,
+      sku: 5027,
+      descripcion: "Disco Duro Externo 1TB",
+      ref: "YR-DD-007",
+      precio: 1350,
+      cantidad: 12,
+      existencia: 120,
+    },
+    {
+      id: 12,
+      sku: 5028,
+      descripcion: "Memoria USB 64GB",
+      ref: "YR-USB-008",
+      precio: 250,
+      cantidad: 40,
+      existencia: 600,
+    },
+    {
+      id: 13,
+      sku: 5029,
+      descripcion: "Cargador inalámbrico",
+      ref: "YR-CH-009",
+      precio: 450,
+      cantidad: 18,
+      existencia: 180,
+    },
+    {
+      id: 14,
+      sku: 5030,
+      descripcion: "Smartwatch Deportivo",
+      ref: "YR-SW-010",
+      precio: 1850,
+      cantidad: 8,
+      existencia: 90,
+    },
+    {
+      id: 15,
+      sku: 5031,
+      descripcion: "Lámpara LED Escritorio",
+      ref: "YR-LD-011",
+      precio: 320,
+      cantidad: 15,
+      existencia: 220,
+    },
+    {
+      id: 16,
+      sku: 5032,
+      descripcion: "Batería Externa 10000mAh",
+      ref: "YR-PB-012",
+      precio: 750,
+      cantidad: 22,
+      existencia: 160,
+    },
+    {
+      id: 17,
+      sku: 5033,
+      descripcion: "Parlante Bluetooth",
+      ref: "YR-SP-013",
+      precio: 1200,
+      cantidad: 14,
+      existencia: 130,
+    },
+    {
+      id: 18,
+      sku: 5034,
+      descripcion: "Teclado y Mouse Inalámbrico",
+      ref: "YR-KM-014",
+      precio: 950,
+      cantidad: 10,
+      existencia: 110,
+    },
+    {
+      id: 19,
+      sku: 5035,
+      descripcion: "Router WiFi 6",
+      ref: "YR-RT-015",
+      precio: 2200,
+      cantidad: 7,
+      existencia: 75,
+    },
+    {
+      id: 20,
+      sku: 5036,
+      descripcion: "Cámara de Seguridad WiFi",
+      ref: "YR-CS-016",
+      precio: 2800,
+      cantidad: 6,
+      existencia: 60,
+    },
+    {
+      id: 21,
+      sku: 5037,
+      descripcion: "Base de Refrigeración Laptop",
+      ref: "YR-BR-017",
+      precio: 560,
+      cantidad: 12,
+      existencia: 140,
+    },
+    {
+      id: 22,
+      sku: 5038,
+      descripcion: "Tablet Android 10 pulgadas",
+      ref: "YR-TB-018",
+      precio: 4800,
+      cantidad: 4,
+      existencia: 40,
+    },
+    {
+      id: 23,
+      sku: 5039,
+      descripcion: "Micrófono Profesional USB",
+      ref: "YR-MC-019",
+      precio: 1600,
+      cantidad: 9,
+      existencia: 100,
+    },
+    {
+      id: 24,
+      sku: 5040,
+      descripcion: "Luces LED RGB",
+      ref: "YR-LR-020",
+      precio: 450,
+      cantidad: 30,
+      existencia: 500,
     },
   ]);
 
@@ -91,19 +277,17 @@ const Facturacion = ({ navigation }) => {
     },
   ];
 
-  const totalCantidad = productos.reduce((acc, prod) => acc + prod.cantidad, 0);
-
   const seleccionarCliente = (cliente) => {
     setClienteSeleccionado(cliente); // 🔹 Guarda el cliente seleccionado
     setVisible(false); // 🔹 Cierra el modal
-    setBuscarTexto(""); // 🔹 Limpia el texto del buscador
+    setBuscarTextoC(""); // 🔹 Limpia el texto del buscador
     setClientesFiltrados(clientes); // 🔹 Restablece la lista completa de clientes
     Keyboard.dismiss(); // 🔹 Oculta el teclado y quita el foco del TextInput
   };
 
   // Función para filtrar clientes en el modal
   const filtrarClientes = (texto) => {
-    setBuscarTexto(texto);
+    setBuscarTextoC(texto);
 
     // 🔹 Filtra la lista de clientes en tiempo real
     const filtrados = clientes.filter((cliente) =>
@@ -113,12 +297,68 @@ const Facturacion = ({ navigation }) => {
     setClientesFiltrados(filtrados);
   };
 
-  const seleccionarProducto = (producto) => {
-    setProductoSeleccionado(producto); // 🔹 Guarda el cliente seleccionado
-    setVisible2(false); // 🔹 Cierra el modal
-    setBuscarTextoProducto(""); // 🔹 Limpia el texto del buscador
-    setProductosFiltrados(productos); // 🔹 Restablece la lista completa de clientes
-    Keyboard.dismiss(); // 🔹 Oculta el teclado y quita el foco del TextInput
+
+  // Función para filtrar productos en el modal
+  const filtrarProductos = (texto) => {
+    setBuscarTextoProducto(texto);
+    if (texto.trim() === "") {
+      // Si el texto está vacío, mostramos todos los productos
+      setProductosFiltrados(productos);
+    } else {
+      // Filtramos los productos según el texto ingresado
+      const filtrados = productos.filter((producto) =>
+        producto.descripcion.toLowerCase().includes(texto.toLowerCase())
+      );
+      setProductosFiltrados(filtrados);
+    }
+  };
+
+  // Función para actualizar la cantidad de un producto manualmente
+  const actualizarCantidadProducto = (id, valor) => {
+    // Convertimos el valor a número (si es posible)
+    const cantidad = parseInt(valor, 10) || 0;
+    setCantidadesProductos({
+      ...cantidadesProductos,
+      [id]: cantidad,
+    });
+  };
+
+  // Función para incrementar la cantidad en 1
+  const incrementarCantidadProducto = (id) => {
+    setCantidadesProductos({
+      ...cantidadesProductos,
+      [id]: (cantidadesProductos[id] || 0) + 1,
+    });
+  };
+
+  const handleSeleccionarProductos = () => {
+    // 1) Recorremos el diccionario (cantidadesProductos),
+    // 2) localizamos cada producto original en "productos"
+    // 3) copiamos sus datos pero con la cantidad final
+    // 4) filtramos solo los que tengan cantidad > 0
+
+    const productosConCantidades = Object.keys(cantidadesProductos)
+      .map((id) => {
+        // Buscamos el producto en el array principal
+        const productoOriginal = productos.find(
+          (p) => p.id.toString() === id.toString()
+        );
+
+        if (!productoOriginal) return null;
+
+        return {
+          ...productoOriginal,
+          cantidad: cantidadesProductos[id], // Ajustamos la cantidad
+        };
+      })
+      .filter(Boolean) // eliminamos los null
+      .filter((prod) => prod.cantidad > 0); // solo los que tengan cantidad > 0
+
+    // Actualizamos el estado de productosSeleccionados
+    setProductosSeleccionados(productosConCantidades);
+
+    // Cerramos el modal
+    setVisible2(false);
   };
 
   return (
@@ -174,14 +414,22 @@ const Facturacion = ({ navigation }) => {
           editable
           placeholder="Buscar Cliente"
           style={{ flex: 1 }}
-          value={buscarTexto}
+          value={buscarTextoC}
           onChangeText={(texto) => {
-            setBuscarTexto(texto);
+            setBuscarTextoC(texto);
             setVisible(true); // 🔹 Solo abre el modal
+            setClientesFiltrados(clientes);
             filtrarClientes(texto); // 🔹 Filtra directamente al escribir
           }}
         ></TextInput>
-        <Pressable onPress={() => setVisible(true)} style={styles.buscadorIcon}>
+        <Pressable
+          onPress={() => {
+            setVisible(true);
+            setClientesFiltrados(clientes);
+          }}
+          style={styles.buscadorIcon}
+        >
+          {/* modal clientes */}
           <Modal visible={visible} animationType="slide" transparent={true}>
             <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
@@ -189,7 +437,7 @@ const Facturacion = ({ navigation }) => {
                 <TextInput
                   style={styles.inputBuscar}
                   placeholder="Buscar cliente..."
-                  value={buscarTexto}
+                  value={buscarTextoC}
                   onChangeText={filtrarClientes}
                 />
 
@@ -226,7 +474,14 @@ const Facturacion = ({ navigation }) => {
         </Pressable>
       </View>
       <View style={styles.viewBotones}>
-        <Pressable style={[styles.botones, { backgroundColor: "white" }]}>
+        <Pressable
+          onPress={() => {
+            setVisible2(true);
+            setBuscarTextoProducto(""); // Limpia el texto de búsqueda
+            setProductosFiltrados(productos); // Restaura la lista completa}
+          }}
+          style={[styles.botones, { backgroundColor: "white" }]}
+        >
           <MaterialCommunityIcons
             name="plus"
             style={styles.iconAdd}
@@ -237,36 +492,66 @@ const Facturacion = ({ navigation }) => {
 
           <Modal visible={visible2} animationType="slide" transparent={true}>
             <View style={styles.modalContainer}>
-              <View style={styles.modalContent}>
-                {/* 🔹 Aquí se busca a los clientes */}
-                <TextInput
-                  style={styles.inputBuscar}
-                  placeholder="Buscar cliente..."
-                  value={buscarTexto}
-                  onChangeText={filtrarClientes}
-                />
-
+              <View style={styles.modalContent2}>
+                {/* Barra de búsqueda fija */}
+                <View style={styles.searchContainer}>
+                  <TextInput
+                    style={styles.inputBuscar2}
+                    placeholder="Buscar producto..."
+                    value={buscarTextoProducto}
+                    onChangeText={filtrarProductos}
+                  />
+                </View>
+                {/* FlatList para los productos */}
                 <FlatList
-                  data={clientesFiltrados}
-                  keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      style={styles.itemCliente}
-                      onPress={() => seleccionarCliente(item)}
-                    >
-                      <Text style={styles.nombreCliente}>{item.nombre}</Text>
-                      <Text style={styles.infoCliente}>
-                        {item.telefono} - {item.direccion}
-                      </Text>
-                    </Pressable>
-                  )}
-                />
+                  data={productosFiltrados}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => {
+                    const cantidad = cantidadesProductos[item.id] || 0;
 
+                    return (
+                      <View style={styles.itemRow}>
+                        <View style={{ flex: 3 }}>
+                          <Text
+                            style={[styles.nombreCliente, { fontSize: 14 }]}
+                          >
+                            ({item.sku}) {item.descripcion}
+                          </Text>
+                          <Text style={[styles.infoCliente, { fontSize: 12 }]}>
+                            REF: {item.ref} Precio: ${item.precio} Exist.:{" "}
+                            {item.existencia}
+                          </Text>
+                        </View>
+                        <View style={styles.itemQuantity}>
+                          <TextInput
+                            style={styles.quantityInput}
+                            keyboardType="numeric"
+                            value={String(cantidad)}
+                            onChangeText={(text) =>
+                              actualizarCantidadProducto(item.id, text)
+                            }
+                          />
+                          <Pressable
+                            onPress={() => incrementarCantidadProducto(item.id)}
+                            style={styles.plusButton}
+                          >
+                            <MaterialCommunityIcons
+                              name="plus"
+                              size={20}
+                              color="#0073c6"
+                            />
+                          </Pressable>
+                        </View>
+                      </View>
+                    );
+                  }}
+                  style={{ flex: 1 }}
+                />
                 <Pressable
                   style={styles.botonCerrar}
-                  onPress={() => setVisible2(false)}
+                  onPress={handleSeleccionarProductos}
                 >
-                  <Text style={styles.textoBotonCerrar}>Cerrar</Text>
+                  <Text style={styles.textoBotonCerrar}>Seleccionar</Text>
                 </Pressable>
               </View>
             </View>
@@ -281,6 +566,7 @@ const Facturacion = ({ navigation }) => {
         </Pressable>
       </View>
 
+      {/* Grid de productos */}
       <View style={styles.grid}>
         <View style={styles.headerRow}>
           <Text style={[styles.cell, styles.cellNumero, styles.headerText]}>
@@ -301,13 +587,13 @@ const Facturacion = ({ navigation }) => {
 
         {/* Lista de productos */}
         <FlatList
-          data={productos}
+          data={productosSeleccionados}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
             <View style={styles.row}>
               <Text style={[styles.cell, styles.cellNumero]}>{index + 1}</Text>
               <Text style={[styles.cell, styles.cellDescripcion]}>
-                {item.nombre}
+                {item.descripcion}
               </Text>
               <Text style={[styles.cell, styles.cellPrecio]}>
                 {item.cantidad}
@@ -317,23 +603,43 @@ const Facturacion = ({ navigation }) => {
               </Text>
             </View>
           )}
+          // Fila de Totales
+          ListFooterComponent={
+            <View style={[styles.row, styles.totalRow]}>
+              <Text style={[styles.cell, styles.cellNumero, styles.totalText]}>
+                {productosSeleccionados.length}
+              </Text>
+              <Text
+                style={[styles.cell, styles.cellDescripcion, styles.totalText]}
+              >
+                Total
+              </Text>
+              <Text
+                style={[styles.cell, styles.cellCantidad, styles.totalText]}
+              >
+                {
+                  // Suma total de cantidades
+                  productosSeleccionados.reduce(
+                    (acc, prod) => acc + prod.cantidad,
+                    0
+                  )
+                }
+              </Text>
+              <Text style={[styles.cell, styles.cellPrecio, styles.totalText]}>
+                {
+                  // Suma total de precios (cantidad * precio)
+                  "$" +
+                    productosSeleccionados
+                      .reduce(
+                        (acc, prod) => acc + prod.cantidad * prod.precio,
+                        0
+                      )
+                      .toFixed(2)
+                }
+              </Text>
+            </View>
+          }
         />
-
-        {/* Fila de Totales */}
-        <View style={[styles.row, styles.totalRow]}>
-          <Text style={[styles.cell, styles.cellNumero, styles.totalText]}>
-            {productos.length}
-          </Text>
-          <Text style={[styles.cell, styles.cellDescripcion, styles.totalText]}>
-            Total
-          </Text>
-          <Text style={[styles.cell, styles.cellCantidad, styles.totalText]}>
-            {totalCantidad}
-          </Text>
-          <Text style={[styles.cell, styles.cellPrecio, styles.totalText]}>
-            $2,065.10
-          </Text>
-        </View>
       </View>
 
       <Pressable style={styles.botonGuardar}>
@@ -474,6 +780,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     elevation: 3,
     padding: 5,
+    flex: 1,
   },
   headerRow: {
     flexDirection: "row",
@@ -498,13 +805,15 @@ const styles = StyleSheet.create({
   },
   totalRow: {
     backgroundColor: "#f1f1f1",
+    paddingVertical: 8,
+    marginTop: 6,
   },
   totalText: {
     fontWeight: "bold",
     color: "#0073c6",
   },
 
-  cellNumero: { flex: 0.5, textAlign: "left" }, // Hace que la columna # sea más pequeña
+  cellNumero: { flex: 0.5, textAlign: "left", color: "gray" }, // Hace que la columna # sea más pequeña
   cellDescripcion: { flex: 2, textAlign: "left" }, // Más espacio para la descripción
   cellCantidad: { flex: 1, textAlign: "center" }, // Tamaño normal para Cantidad
   cellPrecio: { flex: 1, textAlign: "center" }, // Tamaño normal para Precio
@@ -554,12 +863,33 @@ const styles = StyleSheet.create({
     padding: 15,
     alignItems: "center",
   },
+  modalContent2: {
+    width: "90%",
+    height: "90%",
+    backgroundColor: "white",
+    borderRadius: 10,
+    padding: 15,
+  },
+  searchContainer: {
+    // Fija la altura de la barra de búsqueda
+    height: 50,
+    justifyContent: "center",
+    backgroundColor: "#f0f0f0",
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
   inputBuscar: {
     width: "100%",
     padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#ccc",
     marginBottom: 10,
+  },
+  inputBuscar2: {
+    width: "100%",
+    height: "100%",
+    fontSize: 16,
   },
   itemCliente: {
     width: "100%",
@@ -568,7 +898,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#ddd",
   },
   nombreCliente: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
   },
   infoCliente: {
@@ -580,10 +910,41 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 5,
     marginTop: 10,
+    alignItems: "center",
   },
   textoBotonCerrar: {
     color: "white",
     fontWeight: "bold",
+  },
+  itemQuantity: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  quantityInput: {
+    width: 30,
+    height: 30,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    textAlign: "center",
+    borderRadius: 4,
+    marginRight: 4,
+    paddingVertical: 0, // Puedes ajustar el padding según convenga
+  },
+  plusButton: {
+    padding: 4,
+    borderWidth: 1,
+    borderColor: "#0073c6",
+    borderRadius: 4,
+  },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+    justifyContent: "space-between",
   },
 });
 
