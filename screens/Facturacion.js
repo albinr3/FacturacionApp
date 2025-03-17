@@ -504,6 +504,7 @@ const Facturacion = ({ navigation }) => {
                 </View>
                 {/* FlatList para los productos */}
                 <FlatList
+                  removeClippedSubviews={false}
                   data={productosFiltrados}
                   keyExtractor={(item) => item.id.toString()}
                   renderItem={({ item }) => {
