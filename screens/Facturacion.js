@@ -11,10 +11,13 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Keyboard } from "react-native";
+import * as ScreenOrientation from 'expo-screen-orientation';
+
 
 const Facturacion = ({ navigation }) => {
   const [visible, setVisible] = useState(false); // Estado del modal
   const [visible2, setVisible2] = useState(false); // Estado del modal
+  const [visible3, setVisible3] = useState(false); // Estado del modal
   const [buscarTextoC, setBuscarTextoC] = useState("");
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [clientesFiltrados, setClientesFiltrados] = useState(clientes);
@@ -297,7 +300,6 @@ const Facturacion = ({ navigation }) => {
     setClientesFiltrados(filtrados);
   };
 
-
   // Función para filtrar productos en el modal
   const filtrarProductos = (texto) => {
     setBuscarTextoProducto(texto);
@@ -558,12 +560,134 @@ const Facturacion = ({ navigation }) => {
             </View>
           </Modal>
         </Pressable>
-        <Pressable style={styles.botones}>
+        <Pressable
+          style={styles.botones}
+          onPress={async () => {
+            
+            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE); // 🔹 Cambia a horizontal
+            setVisible3(true);
+          }}
+        >
           <MaterialCommunityIcons
             name="newspaper-variant-multiple"
             style={styles.iconResumen}
           ></MaterialCommunityIcons>
           <Text style={styles.textBotones}> Resumen</Text>
+
+          <Modal animationType="slide" visible={visible3}>
+            <View style={styles.grid}>
+              <View style={styles.headerRow}>
+                <Text
+                  style={[styles.cell, styles.cellNumero, styles.headerText]}
+                >
+                  SKU
+                </Text>
+                <Text
+                  style={[
+                    styles.cell,
+                    styles.cellDescripcion,
+                    styles.headerText,
+                  ]}
+                >
+                  Descripción
+                </Text>
+                <Text
+                  style={[
+                    styles.cell,
+                    styles.cellDescripcion,
+                    styles.headerText,
+                  ]}
+                >
+                  Referencia
+                </Text>
+                <Text
+                  style={[styles.cell, styles.cellCantidad, styles.headerText]}
+                >
+                  Cantidad
+                </Text>
+                <Text
+                  style={[styles.cell, styles.cellPrecio, styles.headerText]}
+                >
+                  Precio
+                </Text>
+                <Text
+                  style={[styles.cell, styles.cellPrecio, styles.headerText]}
+                >
+                  Subtotal
+                </Text>
+              </View>
+
+              {/* Lista de productos */}
+              <FlatList
+                data={productosSeleccionados}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item, index }) => (
+                  <View style={styles.row}>
+                    <Text style={[styles.cell, styles.cellNumero]}>
+                      {index + 1}
+                    </Text>
+                    <Text style={[styles.cell, styles.cellDescripcion]}>
+                      {item.descripcion}
+                    </Text>
+                    <Text style={[styles.cell, styles.cellPrecio]}>
+                      {item.cantidad}
+                    </Text>
+                    <Text style={[styles.cell, styles.cellCantidad]}>
+                      ${item.precio.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+                // Fila de Totales
+                ListFooterComponent={
+                  <View style={[styles.row, styles.totalRow]}>
+                    <Text
+                      style={[styles.cell, styles.cellNumero, styles.totalText]}
+                    >
+                      {productosSeleccionados.length}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cell,
+                        styles.cellDescripcion,
+                        styles.totalText,
+                      ]}
+                    >
+                      Total
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cell,
+                        styles.cellCantidad,
+                        styles.totalText,
+                      ]}
+                    >
+                      {
+                        // Suma total de cantidades
+                        productosSeleccionados.reduce(
+                          (acc, prod) => acc + prod.cantidad,
+                          0
+                        )
+                      }
+                    </Text>
+                    <Text
+                      style={[styles.cell, styles.cellPrecio, styles.totalText]}
+                    >
+                      {
+                        // Suma total de precios (cantidad * precio)
+                        "$" +
+                          productosSeleccionados
+                            .reduce(
+                              (acc, prod) => acc + prod.cantidad * prod.precio,
+                              0
+                            )
+                            .toFixed(2)
+                      }
+                    </Text>
+                  </View>
+                }
+              />
+            </View>
+          </Modal>
         </Pressable>
       </View>
 
