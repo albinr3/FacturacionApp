@@ -1,6 +1,6 @@
 import { StyleSheet, View, Text, Pressable, Dimensions } from "react-native";
 import Feather from "@expo/vector-icons/Feather";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
+import { FontAwesome5 } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import {
   useFonts,
@@ -70,7 +70,7 @@ export default function Home({ navigation }) {
             style={styles.buttonResultados}
             onPress={() => navigation.navigate("Facturacion")}
           >
-            <FontAwesome name="newspaper-o" style={styles.icon2}></FontAwesome>
+            <FontAwesome5 name="clipboard" style={styles.icon2}></FontAwesome5>
             <Text style={styles.textButtonUp}>
               FACTURACION
             </Text>
@@ -79,14 +79,14 @@ export default function Home({ navigation }) {
             style={styles.buttonFacturar}
             onPress={() => navigation.navigate("Cxc")}
           >
-            <FontAwesome name="money" style={styles.icon3}></FontAwesome>
+            <FontAwesome5 name="coins" style={styles.icon3}></FontAwesome5>
             <Text style={styles.textButtonUp}>CXC</Text>
           </Pressable>
           <Pressable
             style={styles.buttonPrueba}
-            onPress={() => navigation.navigate("Pruebas")}
+            onPress={() => navigation.navigate("Products")}
           >
-            <FontAwesome name="bug" style={styles.iconPrueba}></FontAwesome>
+            <FontAwesome5 name="boxes" style={styles.iconPrueba}></FontAwesome5>
             <Text style={styles.textButton}>
               PRODUCTOS
             </Text>
@@ -94,16 +94,16 @@ export default function Home({ navigation }) {
 
           <Pressable
             style={styles.buttonPerfil}
-            onPress={() => navigation.navigate("Profile")}
+            onPress={() => navigation.navigate("Customers")}
           >
-            <FontAwesome name="user" style={styles.icon4}></FontAwesome>
+            <FontAwesome5 name="users" style={styles.icon4}></FontAwesome5>
             <Text style={styles.textButton}>CLIENTES</Text>
           </Pressable>
           <Pressable
             style={styles.buttonSucursales}
             onPress={() => navigation.navigate("LocationsMap")}
           >
-            <FontAwesome name="map-marker" style={styles.iconMap}></FontAwesome>
+            <FontAwesome5 name="truck" style={styles.iconMap}></FontAwesome5>
             <Text style={styles.textButton}>PROVEEDORES</Text>
           </Pressable>
           <Pressable

@@ -11,20 +11,18 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Keyboard } from "react-native";
-import * as ScreenOrientation from 'expo-screen-orientation';
-
+import * as ScreenOrientation from "expo-screen-orientation";
 
 const Facturacion = ({ navigation }) => {
   const [visible, setVisible] = useState(false); // Estado del modal
   const [visible2, setVisible2] = useState(false); // Estado del modal
-  const [visible3, setVisible3] = useState(false); // Estado del modal
+  const [visibleModalResumen, setVisibleModalResumen] = useState(false); // Estado del modal
   const [buscarTextoC, setBuscarTextoC] = useState("");
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [clientesFiltrados, setClientesFiltrados] = useState(clientes);
   const [productosFiltrados, setProductosFiltrados] = useState(productos);
   const [buscarTextoProducto, setBuscarTextoProducto] = useState("");
   const [productosSeleccionados, setProductosSeleccionados] = useState([]);
-
   const [cantidadesProductos, setCantidadesProductos] = useState({});
 
   // Lista de productos seleccionados
@@ -185,7 +183,7 @@ const Facturacion = ({ navigation }) => {
     {
       id: 18,
       sku: 5034,
-      descripcion: "Teclado y Mouse Inalámbrico",
+      descripcion: "Teclado y Mouse Inalámbrico Rojo y azul de 32gb",
       ref: "YR-KM-014",
       precio: 950,
       cantidad: 10,
@@ -563,9 +561,10 @@ const Facturacion = ({ navigation }) => {
         <Pressable
           style={styles.botones}
           onPress={async () => {
-            
-            await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE); // 🔹 Cambia a horizontal
-            setVisible3(true);
+            await ScreenOrientation.lockAsync(
+              ScreenOrientation.OrientationLock.LANDSCAPE
+            ); // 🔹 Cambia a horizontal
+            setVisibleModalResumen(true);
           }}
         >
           <MaterialCommunityIcons
@@ -574,8 +573,32 @@ const Facturacion = ({ navigation }) => {
           ></MaterialCommunityIcons>
           <Text style={styles.textBotones}> Resumen</Text>
 
-          <Modal animationType="slide" visible={visible3}>
-            <View style={styles.grid}>
+          <Modal
+            animationType="slide"
+            visible={visibleModalResumen}
+            onRequestClose={() => setVisible(false)}
+          >
+            <View style={styles.headerConfig}>
+              <Pressable
+                onPress={async () => {
+                  await ScreenOrientation.lockAsync(
+                    ScreenOrientation.OrientationLock.PORTRAIT
+                  ); // 🔹 Cambia a horizontal
+                  setVisibleModalResumen(false);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="keyboard-backspace"
+                  style={styles.iconTitle}
+                />
+              </Pressable>
+              <Text style={styles.textTitle}>RESUMEN</Text>
+              <MaterialCommunityIcons
+                name="snowflake-variant"
+                style={styles.iconTitle}
+              ></MaterialCommunityIcons>
+            </View>
+            <View style={[styles.grid, {marginTop: 5}]}>
               <View style={styles.headerRow}>
                 <Text
                   style={[styles.cell, styles.cellNumero, styles.headerText]}
@@ -594,7 +617,7 @@ const Facturacion = ({ navigation }) => {
                 <Text
                   style={[
                     styles.cell,
-                    styles.cellDescripcion,
+                    styles.cellReferencia,
                     styles.headerText,
                   ]}
                 >
@@ -624,16 +647,22 @@ const Facturacion = ({ navigation }) => {
                 renderItem={({ item, index }) => (
                   <View style={styles.row}>
                     <Text style={[styles.cell, styles.cellNumero]}>
-                      {index + 1}
+                      {item.sku}
                     </Text>
                     <Text style={[styles.cell, styles.cellDescripcion]}>
                       {item.descripcion}
+                    </Text>
+                    <Text style={[styles.cell, styles.cellReferencia]}>
+                      {item.ref}
                     </Text>
                     <Text style={[styles.cell, styles.cellPrecio]}>
                       {item.cantidad}
                     </Text>
                     <Text style={[styles.cell, styles.cellCantidad]}>
                       ${item.precio.toFixed(2)}
+                    </Text>
+                    <Text style={[styles.cell, styles.cellCantidad]}>
+                      ${(item.precio * item.cantidad).toFixed(2)}
                     </Text>
                   </View>
                 )}
@@ -657,6 +686,15 @@ const Facturacion = ({ navigation }) => {
                     <Text
                       style={[
                         styles.cell,
+                        styles.cellReferencia,
+                        styles.totalText,
+                      ]}
+                    >
+                      {/* Vacio para que tenga el mismo formato que arriba */}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cell,
                         styles.cellCantidad,
                         styles.totalText,
                       ]}
@@ -668,6 +706,15 @@ const Facturacion = ({ navigation }) => {
                           0
                         )
                       }
+                    </Text>
+                    <Text
+                      style={[
+                        styles.cell,
+                        styles.cellCantidad,
+                        styles.totalText,
+                      ]}
+                    >
+                      {/* Vacio para que tenga el mismo formato que arriba */}
                     </Text>
                     <Text
                       style={[styles.cell, styles.cellPrecio, styles.totalText]}
@@ -739,6 +786,7 @@ const Facturacion = ({ navigation }) => {
               >
                 Total
               </Text>
+
               <Text
                 style={[styles.cell, styles.cellCantidad, styles.totalText]}
               >
@@ -940,6 +988,7 @@ const styles = StyleSheet.create({
 
   cellNumero: { flex: 0.5, textAlign: "left", color: "gray" }, // Hace que la columna # sea más pequeña
   cellDescripcion: { flex: 2, textAlign: "left" }, // Más espacio para la descripción
+  cellReferencia: { flex: 1.5, textAlign: "left" }, // Más espacio para la referencia
   cellCantidad: { flex: 1, textAlign: "center" }, // Tamaño normal para Cantidad
   cellPrecio: { flex: 1, textAlign: "center" }, // Tamaño normal para Precio
   headerConfig: {
