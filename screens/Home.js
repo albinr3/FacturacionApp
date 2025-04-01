@@ -101,20 +101,20 @@ export default function Home({ navigation }) {
           </Pressable>
           <Pressable
             style={styles.buttonSucursales}
-            onPress={() => navigation.navigate("LocationsMap")}
+            onPress={() => navigation.navigate("Proveedores")}
           >
             <FontAwesome5 name="truck" style={styles.iconMap}></FontAwesome5>
             <Text style={styles.textButton}>PROVEEDORES</Text>
           </Pressable>
           <Pressable
             style={styles.buttonBlog}
-            onPress={() => navigation.navigate("BlogList")}
+            onPress={() => navigation.navigate("ConsultaFacturas")}
           >
             <MaterialCommunityIcons
               name="image-album"
               style={styles.iconBlog}
             ></MaterialCommunityIcons>
-            <Text style={styles.textButton}>Blog</Text>
+            <Text style={styles.textButton}>Facturas</Text>
           </Pressable>
         </View>
       </View>
