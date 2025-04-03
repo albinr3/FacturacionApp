@@ -1,128 +1,114 @@
-import React from "react";
-import { StyleSheet, View, Text, ScrollView } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useState } from "react";
+import { Button, View, Text } from "react-native";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 
 const FacturaPdfView = ({ route, navigation }) => {
+  // Extrae invoice de route.params
   const { invoice } = route.params;
+  const [pdfPath, setPdfPath] = useState(null);
+
+  const generarPDF = async () => {
+    console.log("Invoice recibido:", invoice);
+
+    console.log("click");
+    // Se construye el HTML de la factura usando los datos
+    const htmlContent = `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .company-header { text-align: center; margin-bottom: 20px; }
+          .company-header h2 { margin: 0; font-size: 22px; }
+          .company-details { font-size: 18px; margin-top: 5px; line-height: 2px; }
+          .header { border-bottom: 1px solid #ccc; font-size: 18px; margin-bottom: 20px; padding-bottom: 10px; }
+          h1 { color: #0073c6; text-align: center; }
+          .section { margin-bottom: 20px; }
+          .producto { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 18px; }
+          .producto.header { font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; }
+          .producto span { flex: 1; }
+
+          /* Centrar el contenido de la columna de Referencia (2do) y Cantidad (3er) */
+          .producto span:nth-child(2),
+          .producto span:nth-child(3) {
+            text-align: center;
+          }
+        </style>
+      </head>
+      <body>
+        <!-- Encabezado de la empresa -->
+        <div class="company-header">
+          <h2>Importadora Fidodido SRL</h2>
+          <div class="company-details">
+            <p>La Rosa, Moca, Espaillat, Rep. Dom</p>
+            <p>Teléfono: 809-578-1310 | RNC: 13190948</p>
+          </div>
+        </div>
+        <!-- Encabezado de la factura -->
+        <div class="header">
+          <h1>Factura ${invoice.id}</h1>
+          <p><strong>Cliente:</strong> ${invoice.cliente}</p>
+          <p><strong>Fecha:</strong> ${invoice.fecha}</p>
+          <p><strong>Condición:</strong> ${invoice.condicion}</p>
+        </div>
+        <!-- Sección de productos -->
+        <div class="section">
+          <h2>Productos</h2>
+          <!-- Encabezado de columnas -->
+          <div class="producto header">
+            <span>Descripción</span>
+            <span>Referencia</span>
+            <span>Cantidad</span>
+            <span>Precio</span>
+            <span>Subtotal</span>
+          </div>
+          ${invoice.productos
+            .map(
+              (prod) => `
+                <div class="producto">
+                  <span>${prod.descripcion}</span>
+                  <span>${prod.ref}</span>
+                  <span>${prod.cantidad}</span>
+                  <span>$${prod.precio.toFixed(2)}</span>
+                  <span>$${(prod.cantidad * prod.precio).toFixed(2)}</span>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+        <!-- Total -->
+        <div class="section" style="text-align: right;">
+          <h2>Total: $${invoice.monto.toFixed(2)}</h2>
+        </div>
+      </body>
+    </html>
+  `;
+
+    try {
+      // Genera el PDF a partir del HTML
+      const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      setPdfPath(uri);
+
+      // Si se desea compartir el PDF y está disponible en la plataforma
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      } else {
+        console.log("El compartir PDF no está disponible en esta plataforma.");
+      }
+    } catch (error) {
+      console.error("Error al generar el PDF:", error);
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Encabezado de la factura */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.title}>Factura {invoice.id}</Text>
-          <View style={styles.headerDetails}>
-            <Text style={styles.subtitle}>Cliente: {invoice.cliente}</Text>
-            <Text style={styles.subtitle}>Fecha: {invoice.fecha}</Text>
-            <Text style={styles.subtitle}>Condición: {invoice.condicion}</Text>
-          </View>
-        </View>
-
-        <View style={styles.separator} />
-
-        {/* Sección de Productos */}
-        <Text style={styles.sectionTitle}>Productos</Text>
-        <View style={styles.productContainer}>
-          {invoice.productos.map((prod, index) => (
-            <View key={index} style={styles.productRow}>
-              <View style={styles.productDescription}>
-                <Text style={styles.productLabel}>Producto</Text>
-                <Text style={styles.productText}>{prod.descripcion}</Text>
-              </View>
-              <View style={styles.productInfo}>
-                <Text style={styles.productLabel}>Cantidad</Text>
-                <Text style={styles.productText}>{prod.cantidad}</Text>
-              </View>
-              <View style={styles.productInfo}>
-                <Text style={styles.productLabel}>Precio</Text>
-                <Text style={styles.productText}>${prod.precio.toFixed(2)}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.separator} />
-
-        {/* Total */}
-        <View style={styles.totalContainer}>
-          <Text style={styles.totalLabel}>Total:</Text>
-          <Text style={styles.totalValue}>${invoice.monto.toFixed(2)}</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <View style={{ padding: 20 }}>
+      <Button title="Generar PDF" onPress={generarPDF} />
+      {pdfPath && (
+        <Text style={{ marginTop: 10 }}>PDF generado en: {pdfPath}</Text>
+      )}
+    </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fbf9f9" },
-  content: { padding: 20 },
-  headerContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 15,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#0073c6",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  headerDetails: {
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    paddingTop: 10,
-  },
-  subtitle: { fontSize: 16, marginBottom: 5, color: "#555" },
-  separator: { borderBottomWidth: 1, borderBottomColor: "#ccc", marginVertical: 15 },
-  sectionTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 10, color: "#0073c6" },
-  productContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 15,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  productRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  productDescription: {
-    flex: 2,
-  },
-  productInfo: {
-    flex: 1,
-    alignItems: "center",
-  },
-  productLabel: { fontSize: 14, fontWeight: "600", color: "#0073c6" },
-  productText: { fontSize: 16, color: "#333", marginTop: 2 },
-  totalContainer: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 15,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  totalLabel: { fontSize: 20, fontWeight: "bold", color: "#0073c6", marginRight: 10 },
-  totalValue: { fontSize: 20, fontWeight: "bold", color: "#333" },
-});
 
 export default FacturaPdfView;

@@ -45,7 +45,9 @@ const sampleInvoices = [
     monto: 650.0,
     fecha: "2024-03-18",
     condicion: "Crédito",
-    productos: [{ descripcion: "Teclado mecánico RGB", cantidad: 1, precio: 850 }],
+    productos: [
+      { descripcion: "Teclado mecánico RGB", cantidad: 1, precio: 850 },
+    ],
   },
   {
     id: "F004",
@@ -55,7 +57,9 @@ const sampleInvoices = [
     monto: 1320.0,
     fecha: "2024-03-20",
     condicion: "Contado",
-    productos: [{ descripcion: "Monitor LED 24 pulgadas", cantidad: 1, precio: 4200 }],
+    productos: [
+      { descripcion: "Monitor LED 24 pulgadas", cantidad: 1, precio: 4200 },
+    ],
   },
   {
     id: "F005",
@@ -65,7 +69,9 @@ const sampleInvoices = [
     monto: 245.75,
     fecha: "2024-03-22",
     condicion: "Crédito",
-    productos: [{ descripcion: "Mouse inalámbrico", cantidad: 1, precio: 320.75 }],
+    productos: [
+      { descripcion: "Mouse inalámbrico", cantidad: 1, precio: 320.75 },
+    ],
   },
   {
     id: "F006",
@@ -75,7 +81,9 @@ const sampleInvoices = [
     monto: 1180.0,
     fecha: "2024-03-25",
     condicion: "Contado",
-    productos: [{ descripcion: "Smartwatch Deportivo", cantidad: 1, precio: 1850 }],
+    productos: [
+      { descripcion: "Smartwatch Deportivo", cantidad: 1, precio: 1850 },
+    ],
   },
   {
     id: "F007",
@@ -85,7 +93,44 @@ const sampleInvoices = [
     monto: 540.0,
     fecha: "2024-03-26",
     condicion: "Crédito",
-    productos: [{ descripcion: "Mochila para laptop", cantidad: 1, precio: 540 }],
+    productos: [
+      {
+        id: "1",
+        sku: 2018,
+        descripcion: "Bocina neodimio",
+        ref: "YR-901",
+        precio: 32.8,
+        cantidad: 22,
+        existencia: 1432,
+      },
+      {
+        id: "2",
+        sku: 2019,
+        descripcion: "Sueter XL Blanco",
+        ref: "YR-0909",
+        precio: 1000,
+        cantidad: 15,
+        existencia: 4432,
+      },
+      {
+        id: "3",
+        sku: 3011,
+        descripcion: "Bocina neodimio",
+        ref: "YR-FA-437",
+        precio: 32.8,
+        cantidad: 22,
+        existencia: 340,
+      },
+      {
+        id: "4",
+        sku: 4213,
+        descripcion: "Sueter XL Blanco",
+        ref: "YR-10",
+        precio: 1000,
+        cantidad: 15,
+        existencia: 22,
+      },
+    ],
   },
 ];
 
@@ -109,7 +154,8 @@ const ConsultaFacturas = ({ navigation }) => {
     const matchCliente =
       clienteFilter.trim() === "" ||
       inv.cliente.toLowerCase().includes(clienteFilter.toLowerCase());
-    const matchFecha = fechaFilter.trim() === "" || inv.fecha.includes(fechaFilter);
+    const matchFecha =
+      fechaFilter.trim() === "" || inv.fecha.includes(fechaFilter);
     return matchCliente && matchFecha;
   });
 
@@ -130,13 +176,15 @@ const ConsultaFacturas = ({ navigation }) => {
     setClientesFiltrados(sampleInvoices);
   };
 
-// Función para actualizar la fecha seleccionada y el filtro,
+  // Función para actualizar la fecha seleccionada y el filtro,
   // y cerrar el modal automáticamente
   const handleDateChange = (event, date) => {
     if (event.type === "set" && date) {
       setSelectedDate(date);
       // Ajuste para compensar el timezone offset
-      const adjustedDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      const adjustedDate = new Date(
+        date.getTime() - date.getTimezoneOffset() * 60000
+      );
       const formattedDate = adjustedDate.toISOString().split("T")[0];
       setFechaFilter(formattedDate);
       setModalFechaVisible(false);
@@ -156,19 +204,30 @@ const ConsultaFacturas = ({ navigation }) => {
       {/* Header con botón de volver */}
       <View style={styles.headerRow}>
         <Pressable onPress={() => navigation.goBack()}>
-          <MaterialCommunityIcons name="keyboard-backspace" style={styles.iconTitle} />
+          <MaterialCommunityIcons
+            name="keyboard-backspace"
+            style={styles.iconTitle}
+          />
         </Pressable>
         <Text style={styles.textTitle}>Consulta de Facturas</Text>
       </View>
 
       {/* Sección de filtros */}
       <View style={styles.filtrosContainer}>
-        <Pressable style={styles.filterButton} onPress={() => setModalClienteVisible(true)}>
+        <Pressable
+          style={styles.filterButton}
+          onPress={() => setModalClienteVisible(true)}
+        >
           <Text style={styles.filterText}>
-            {clienteFilter ? `Cliente: ${clienteFilter}` : "Filtrar por Cliente"}
+            {clienteFilter
+              ? `Cliente: ${clienteFilter}`
+              : "Filtrar por Cliente"}
           </Text>
         </Pressable>
-        <Pressable style={styles.filterButton} onPress={() => setModalFechaVisible(true)}>
+        <Pressable
+          style={styles.filterButton}
+          onPress={() => setModalFechaVisible(true)}
+        >
           <Text style={styles.filterText}>
             {fechaFilter ? `Fecha: ${fechaFilter}` : "Filtrar por Fecha"}
           </Text>
@@ -180,7 +239,10 @@ const ConsultaFacturas = ({ navigation }) => {
         data={filteredInvoices}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <Pressable style={styles.invoiceCard} onPress={() => verFactura(item)}>
+          <Pressable
+            style={styles.invoiceCard}
+            onPress={() => verFactura(item)}
+          >
             <View style={styles.invoiceRow}>
               <Text style={styles.invoiceLabel}>Factura:</Text>
               <Text style={styles.invoiceValue}>{item.id}</Text>
@@ -194,7 +256,9 @@ const ConsultaFacturas = ({ navigation }) => {
             <View style={styles.invoiceRow}>
               <Text style={styles.invoiceLabel}>Fecha:</Text>
               <Text style={styles.invoiceValue}>{item.fecha}</Text>
-              <Text style={[styles.invoiceLabel, { marginLeft: 10 }]}>Condición:</Text>
+              <Text style={[styles.invoiceLabel, { marginLeft: 10 }]}>
+                Condición:
+              </Text>
               <Text style={styles.invoiceValue}>{item.condicion}</Text>
             </View>
           </Pressable>
@@ -219,7 +283,10 @@ const ConsultaFacturas = ({ navigation }) => {
               data={clientesFiltrados}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <Pressable style={styles.itemCliente} onPress={() => seleccionarCliente(item)}>
+                <Pressable
+                  style={styles.itemCliente}
+                  onPress={() => seleccionarCliente(item)}
+                >
                   <Text style={styles.nombreCliente}>{item.cliente}</Text>
                   <Text style={styles.infoCliente}>
                     {item.telefono} - {item.direccion}
@@ -227,7 +294,10 @@ const ConsultaFacturas = ({ navigation }) => {
                 </Pressable>
               )}
             />
-            <Pressable style={styles.botonCerrar} onPress={() => setModalClienteVisible(false)}>
+            <Pressable
+              style={styles.botonCerrar}
+              onPress={() => setModalClienteVisible(false)}
+            >
               <Text style={styles.textoBotonCerrar}>Cerrar</Text>
             </Pressable>
           </View>
@@ -256,7 +326,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 10, backgroundColor: "#fff" },
   headerRow: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   iconTitle: { color: "#0073c6", fontSize: 28 },
-  textTitle: { fontSize: 20, fontWeight: "bold", color: "#0073c6", marginLeft: 10 },
+  textTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#0073c6",
+    marginLeft: 10,
+  },
   filtrosContainer: {
     flexDirection: "row",
     marginBottom: 10,
@@ -292,7 +367,12 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   invoiceValue: { fontSize: 16, color: "#333" },
-  emptyText: { textAlign: "center", marginTop: 20, fontSize: 16, color: "#999" },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 20,
+    fontSize: 16,
+    color: "#999",
+  },
   modalContainer: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
