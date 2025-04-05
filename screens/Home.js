@@ -77,7 +77,7 @@ export default function Home({ navigation }) {
           </Pressable>
           <Pressable
             style={styles.buttonFacturar}
-            onPress={() => navigation.navigate("Cxc")}
+            onPress={() => navigation.navigate("Prueba")}
           >
             <FontAwesome5 name="coins" style={styles.icon3}></FontAwesome5>
             <Text style={styles.textButtonUp}>CXC</Text>
