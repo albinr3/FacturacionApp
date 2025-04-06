@@ -68,7 +68,7 @@ export default function Home({ navigation }) {
         <View style={styles.viewBotones}>
           <Pressable
             style={styles.buttonResultados}
-            onPress={() => navigation.navigate("Facturacion")}
+            onPress={() => navigation.navigate("Prueba")}
           >
             <FontAwesome5 name="clipboard" style={styles.icon2}></FontAwesome5>
             <Text style={styles.textButtonUp}>
