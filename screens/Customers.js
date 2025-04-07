@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -8,55 +8,25 @@ import {
   Pressable,
   Modal,
   Alert,
+  ActivityIndicator
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import * as Network from "expo-network";
+
+// Importar métodos SQL y sincronización con Supabase
+import {
+  getClientes,
+  insertCliente,
+  updateCliente,
+} from "../database/sqlMethods";
+import { syncWithSupabase } from "../database/sync";
 
 const Customers = ({ navigation }) => {
-  // Lista de clientes seleccionados
-  const [clientes, setClientes] = useState([
-    {
-      id: "1",
-      nombre: "Juan Pérez",
-      telefono: "809-555-1234",
-      direccion: "Calle 10, Santo Domingo",
-      facturas: [
-        { numero: "F001", monto: 1530.75, fecha: "2024-03-10" },
-        { numero: "F002", monto: 9000.5, fecha: "2024-03-15" },
-      ],
-    },
-    {
-      id: "2",
-      nombre: "María González",
-      telefono: "829-888-5678",
-      direccion: "Av. Principal, Santiago",
-      facturas: [],
-    },
-    {
-      id: "3",
-      nombre: "Carlos Ramírez",
-      telefono: "849-777-9123",
-      direccion: "Calle B, La Vega",
-      facturas: [{ numero: "F003", monto: 2000, fecha: "2024-02-28" }],
-    },
-    {
-      id: "4",
-      nombre: "Ana López",
-      telefono: "809-333-4567",
-      direccion: "Calle C, San Cristóbal",
-      facturas: [],
-    },
-    {
-      id: "5",
-      nombre: "Pedro Martínez",
-      telefono: "829-222-7890",
-      direccion: "Av. Duarte, Puerto Plata",
-      facturas: [
-        { numero: "F004", monto: 3200.3, fecha: "2024-03-05" },
-        { numero: "F005", monto: 1500.0, fecha: "2024-03-12" },
-      ],
-    },
-  ]);
+  // Inicialmente, el listado de clientes se carga desde la base de datos local
+  const [loading, setLoading] = useState(false);
+
+  const [clientes, setClientes] = useState([]);
   const [buscarTexto, setBuscarTexto] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [modoEdicion, setModoEdicion] = useState(false);
@@ -67,6 +37,37 @@ const Customers = ({ navigation }) => {
     direccion: "",
     facturas: [],
   });
+
+  // Función para cargar los clientes desde la base de datos SQL
+  const loadClientes = async () => {
+    try {
+      const data = await getClientes();
+      // Como en la DB no se almacena el arreglo "facturas", se asigna un arreglo vacío para la UI
+      const clientesConFacturas = data.map((item) => ({
+        ...item,
+        facturas: [],
+      }));
+      setClientes(clientesConFacturas);
+    } catch (err) {
+      console.error("Error cargando clientes:", err);
+    }
+  };
+
+  // Función para verificar la conectividad y sincronizar con Supabase si es posible
+  const checkSync = async () => {
+    const net = await Network.getNetworkStateAsync();
+    if (net.isConnected && net.isInternetReachable) {
+      await syncWithSupabase();
+      console.log("Si habia internet");
+    } else {
+      console.log("⚠️ No se puede conectar a internet");
+    }
+  };
+  // Cargar clientes y verificar sincronización al montar el componente
+  useEffect(() => {
+    loadClientes();
+    checkSync();
+  }, []);
 
   const abrirModal = (cliente = null) => {
     if (cliente) {
@@ -85,18 +86,38 @@ const Customers = ({ navigation }) => {
     setModalVisible(true);
   };
 
-  const guardarCliente = () => {
+  // Guardar o actualizar cliente en SQL y sincronizar con Supabase
+  const guardarCliente = async () => {
     if (!clienteActual.nombre.trim()) {
       Alert.alert("Error", "El nombre no puede estar vacío.");
       return;
     }
-    if (modoEdicion) {
-      setClientes((prev) =>
-        prev.map((p) => (p.id === clienteActual.id ? clienteActual : p))
-      );
-    } else {
-      setClientes((prev) => [...prev, clienteActual]);
+    try {
+      setLoading(true);
+
+      if (modoEdicion) {
+        await updateCliente(
+          clienteActual.id,
+          clienteActual.nombre,
+          clienteActual.direccion,
+          clienteActual.telefono
+        );
+      } else {
+        await insertCliente(
+          clienteActual.nombre,
+          clienteActual.direccion,
+          clienteActual.telefono
+        );
+      }
+      // Recargar los clientes desde la base de datos local
+      await loadClientes();
+      // Sincronizar con Supabase
+      await syncWithSupabase();
+    } catch (error) {
+      console.error("Error guardando el cliente:", error);
     }
+    setLoading(false);
+
     setModalVisible(false);
   };
 
@@ -136,7 +157,7 @@ const Customers = ({ navigation }) => {
       {/* Lista */}
       <FlatList
         data={clientesFiltrados}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <Pressable style={styles.card} onPress={() => abrirModal(item)}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -166,25 +187,32 @@ const Customers = ({ navigation }) => {
             <Text style={styles.modalTitle}>
               {modoEdicion ? "Editar Cliente" : "Nuevo Cliente"}
             </Text>
-            {["nombre", "id", "direccion", "telefono"].map((campo) => (
+            {modoEdicion && (
+              <TextInput
+                style={[styles.input, styles.inputReadonly]}
+                placeholder="ID"
+                value={clienteActual.id?.toString()}
+                editable={false} // No permite edición
+              />
+            )}
+            {["nombre", "direccion", "telefono"].map((campo) => (
               <TextInput
                 key={campo}
                 style={styles.input}
                 placeholder={campo.toUpperCase()}
-                value={clienteActual[campo].toString()}
+                value={clienteActual[campo]?.toString()}
                 onChangeText={(text) =>
                   setClienteActual((prev) => ({
                     ...prev,
-                    [campo]: campo === "id" ? text.toString() : text,
+                    [campo]: text,
                   }))
                 }
-                keyboardType={
-                  campo === "telefono" || campo === "id"
-                    ? "phone-pad"
-                    : "default"
-                }
+                keyboardType={campo === "telefono" ? "phone-pad" : "default"}
               />
             ))}
+            {/* Muestra el ActivityIndicator cuando está cargando */}
+            {loading && <ActivityIndicator size="large" color="#0073c6" style={{ marginVertical: 10 }} />}
+
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable
                 style={styles.btnCancelar}
@@ -277,6 +305,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     padding: 8,
   },
+  inputReadonly: {
+    backgroundColor: "#eee",
+    color: "#666",
+  },
   btnCancelar: {
     flex: 1,
     padding: 10,
@@ -294,6 +326,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
   },
+
 });
 
 export default Customers;
