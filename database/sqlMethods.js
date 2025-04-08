@@ -49,12 +49,12 @@ export const updateCliente = async (id, nombre, direccion, telefono) => {
 // ***********************
 
 // Insertar un nuevo producto
-export const insertProducto = async (sku, descripcion, referencia, precio, existencia) => {
+export const insertProducto = async (sku, descripcion, referencia, precio, existencia, proveedor_id) => {
   const db = getDB();
   try {
     await db.runAsync(
-      "INSERT INTO Productos (sku, descripcion, referencia, precio, existencia) VALUES (?, ?, ?, ?, ?);",
-      [sku, descripcion, referencia, precio, existencia]
+      "INSERT INTO Productos (sku, descripcion, referencia, precio, existencia, proveedor_id) VALUES (?, ?, ?, ?, ?, ?);",
+      [sku, descripcion, referencia, precio, existencia, proveedor_id]
     );
     console.log("✅ Producto insertado con éxito");
   } catch (err) {
@@ -75,12 +75,12 @@ export const getProductos = async () => {
 };
 
 // Actualizar un producto existente
-export const updateProducto = async (sku, descripcion, referencia, precio, existencia) => {
+export const updateProducto = async (sku, descripcion, referencia, precio, existencia, proveedor_id) => {
   const db = getDB();
   try {
     await db.runAsync(
-      "UPDATE Productos SET descripcion = ?, referencia = ?, precio = ?, existencia = ? WHERE sku = ?;",
-      [descripcion, referencia, precio, existencia, sku]
+      "UPDATE Productos SET descripcion = ?, referencia = ?, precio = ?, existencia = ?, proveedor_id = ? WHERE sku = ?;",
+      [descripcion, referencia, precio, existencia, proveedor_id, sku]
     );
     console.log("✅ Producto actualizado con éxito");
   } catch (err) {
@@ -220,5 +220,28 @@ export const updateDetalleFactura = async (id, numero_factura, sku, cantidad, pr
     console.log("✅ Detalle de factura actualizado con éxito");
   } catch (err) {
     console.error("❌ Error al actualizar detalle de factura:", err);
+  }
+};
+
+
+export const createFacturaConDetalles = async (monto, fecha, condicion, clienteId, detalles) => {
+  try {
+    // Inserta la factura
+    await insertFactura(monto, fecha, condicion, clienteId);
+
+    // Recupera el último ID insertado en la tabla Facturas
+    const db = getDB();
+    const result = await db.getAllAsync("SELECT last_insert_rowid() AS lastId;");
+    const numero_factura = result[0].lastId;
+
+    // Inserta cada registro en la tabla de DetalleFactura
+    for (const detalle of detalles) {
+      // detalle debe contener { sku, cantidad, precio }
+      await insertDetalleFactura(numero_factura, detalle.sku, detalle.cantidad, detalle.precio);
+    }
+    return numero_factura;
+  } catch (error) {
+    console.error("Error en createFacturaConDetalles:", error);
+    throw error;
   }
 };

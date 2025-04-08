@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -8,58 +8,27 @@ import {
   Pressable,
   Modal,
   Alert,
+  ActivityIndicator
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import * as Network from "expo-network";
+
+// Importar métodos SQL y sincronización con Supabase
+import {
+  getProveedores,
+  insertProveedor,
+  updateProveedor,
+} from "../database/sqlMethods";
+import { syncWithSupabase } from "../database/sync";
 
 const Proveedores = ({ navigation }) => {
-  // Lista de clientes seleccionados
-  const [proveedores, setProveedores] = useState([
-    {
-      id: "1",
-      nombre: "Juan Pérez",
-      telefono: "809-555-1234",
-      direccion: "Calle 10, Santo Domingo",
-      facturas: [
-        { numero: "F001", monto: 1530.75, fecha: "2024-03-10" },
-        { numero: "F002", monto: 9000.5, fecha: "2024-03-15" },
-      ],
-    },
-    {
-      id: "2",
-      nombre: "María González",
-      telefono: "829-888-5678",
-      direccion: "Av. Principal, Santiago",
-      facturas: [],
-    },
-    {
-      id: "3",
-      nombre: "Carlos Ramírez",
-      telefono: "849-777-9123",
-      direccion: "Calle B, La Vega",
-      facturas: [{ numero: "F003", monto: 2000, fecha: "2024-02-28" }],
-    },
-    {
-      id: "4",
-      nombre: "Ana López",
-      telefono: "809-333-4567",
-      direccion: "Calle C, San Cristóbal",
-      facturas: [],
-    },
-    {
-      id: "5",
-      nombre: "Pedro Martínez",
-      telefono: "829-222-7890",
-      direccion: "Av. Duarte, Puerto Plata",
-      facturas: [
-        { numero: "F004", monto: 3200.3, fecha: "2024-03-05" },
-        { numero: "F005", monto: 1500.0, fecha: "2024-03-12" },
-      ],
-    },
-  ]);
+  // Se carga la lista de proveedores desde la base de datos local
+  const [proveedores, setProveedores] = useState([]);
   const [buscarTexto, setBuscarTexto] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [proveedorActual, setProveedorActual] = useState({
     id: "",
     nombre: "",
@@ -67,6 +36,37 @@ const Proveedores = ({ navigation }) => {
     direccion: "",
     facturas: [],
   });
+
+  // Función para cargar los proveedores desde SQLite
+  const loadProveedores = async () => {
+    try {
+      const data = await getProveedores();
+      // Como la tabla de proveedores no almacena facturas, asignamos un arreglo vacío para la UI
+      const proveedoresConFacturas = data.map((item) => ({
+        ...item,
+        facturas: [],
+      }));
+      setProveedores(proveedoresConFacturas);
+    } catch (err) {
+      console.error("Error cargando proveedores:", err);
+    }
+  };
+
+  // Función para verificar conectividad y sincronizar con Supabase
+  const checkSync = async () => {
+    const net = await Network.getNetworkStateAsync();
+    if (net.isConnected && net.isInternetReachable) {
+      await syncWithSupabase();
+      console.log("Si había internet");
+    } else {
+      console.log("⚠️ No se puede conectar a internet");
+    }
+  };
+
+  useEffect(() => {
+    loadProveedores();
+    checkSync();
+  }, []);
 
   const abrirModal = (proveedor = null) => {
     if (proveedor) {
@@ -85,23 +85,38 @@ const Proveedores = ({ navigation }) => {
     setModalVisible(true);
   };
 
-  const guardarProveedor = () => {
+  const guardarProveedor = async () => {
     if (!proveedorActual.nombre.trim()) {
       Alert.alert("Error", "El nombre no puede estar vacío.");
       return;
     }
-    if (modoEdicion) {
-      setProveedores((prev) =>
-        prev.map((p) => (p.id === proveedorActual.id ? proveedorActual : p))
-      );
-    } else {
-      setProveedores((prev) => [...prev, proveedorActual]);
+    try {
+      setLoading(true);
+      if (modoEdicion) {
+        await updateProveedor(
+          proveedorActual.id,
+          proveedorActual.nombre,
+          proveedorActual.direccion,
+          proveedorActual.telefono
+        );
+      } else {
+        await insertProveedor(
+          proveedorActual.nombre,
+          proveedorActual.direccion,
+          proveedorActual.telefono
+        );
+      }
+      await loadProveedores();
+      await syncWithSupabase();
+    } catch (err) {
+      console.error("Error guardando proveedor:", err);
     }
+    setLoading(false);
     setModalVisible(false);
   };
 
   const proveedoresFiltrados = proveedores.filter((item) =>
-    `${item.nombre} ${item.id}`
+    `${item.nombre_proveedor} ${item.id}`
       .toLowerCase()
       .includes(buscarTexto.toLowerCase())
   );
@@ -136,7 +151,7 @@ const Proveedores = ({ navigation }) => {
       {/* Lista */}
       <FlatList
         data={proveedoresFiltrados}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <Pressable style={styles.card} onPress={() => abrirModal(item)}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -147,7 +162,7 @@ const Proveedores = ({ navigation }) => {
                 style={{ marginRight: 10 }}
               />
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardText}>{item.nombre}</Text>
+                <Text style={styles.cardText}>{item.nombre_proveedor}</Text>
                 <Text
                   style={[styles.cardText, { fontSize: 13, color: "#555" }]}
                 >
@@ -166,25 +181,42 @@ const Proveedores = ({ navigation }) => {
             <Text style={styles.modalTitle}>
               {modoEdicion ? "Editar Proveedor" : "Nuevo Proveedor"}
             </Text>
-            {["nombre", "id", "direccion", "telefono"].map((campo) => (
+            {modoEdicion && (
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: "#eee", color: "#666" },
+                ]}
+                placeholder="ID"
+                value={proveedorActual.id?.toString()}
+                editable={false}
+              />
+            )}
+            {["nombre", "direccion", "telefono"].map((campo) => (
               <TextInput
                 key={campo}
                 style={styles.input}
                 placeholder={campo.toUpperCase()}
-                value={proveedorActual[campo].toString()}
+                value={proveedorActual[campo]?.toString()}
                 onChangeText={(text) =>
                   setProveedorActual((prev) => ({
                     ...prev,
-                    [campo]: campo === "id" ? text.toString() : text,
+                    [campo]: text,
                   }))
                 }
-                keyboardType={
-                  campo === "telefono" || campo === "id"
-                    ? "phone-pad"
-                    : "default"
-                }
+                keyboardType={campo === "telefono" ? "phone-pad" : "default"}
               />
             ))}
+
+            {/* Muestra el ActivityIndicator cuando está cargando */}
+            {loading && (
+              <ActivityIndicator
+                size="large"
+                color="#0073c6"
+                style={{ marginVertical: 10 }}
+              />
+            )}
+
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable
                 style={styles.btnCancelar}
@@ -244,13 +276,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
-
   cardText: {
     fontSize: 15,
     color: "#333",
     lineHeight: 20,
   },
-
   modalContainer: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.3)",
