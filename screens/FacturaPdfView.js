@@ -5,15 +5,19 @@ import * as Sharing from "expo-sharing";
 
 const FacturaPdfView = ({ route, navigation }) => {
   // Extrae invoice de route.params
-  const { invoice } = route.params;
+  const { invoice, detalles } = route.params;
   const [pdfPath, setPdfPath] = useState(null);
 
   const generarPDF = async () => {
     console.log("Invoice recibido:", invoice);
+    console.log("Detalle recibido:", detalles);
 
-    console.log("click");
+
+   
+
+
     // Se construye el HTML de la factura usando los datos
-    const htmlContent = `
+    const htmlContent = `<!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8" />
@@ -47,8 +51,10 @@ const FacturaPdfView = ({ route, navigation }) => {
         </div>
         <!-- Encabezado de la factura -->
         <div class="header">
-          <h1>Factura ${invoice.id}</h1>
-          <p><strong>Cliente:</strong> ${invoice.cliente}</p>
+          <h1>Factura ${invoice.numero_factura}</h1>
+          <p><strong>Cliente:</strong> ${invoice.cliente} (${
+      invoice.cliente_id
+    })</p>
           <p><strong>Fecha:</strong> ${invoice.fecha}</p>
           <p><strong>Condición:</strong> ${invoice.condicion}</p>
         </div>
@@ -63,15 +69,17 @@ const FacturaPdfView = ({ route, navigation }) => {
             <span>Precio</span>
             <span>Subtotal</span>
           </div>
-          ${invoice.productos
+          ${detalles
             .map(
               (prod) => `
                 <div class="producto">
                   <span>${prod.descripcion}</span>
-                  <span>${prod.ref}</span>
+                  <span>${prod.referencia}</span>
                   <span>${prod.cantidad}</span>
-                  <span>$${prod.precio.toFixed(2)}</span>
-                  <span>$${(prod.cantidad * prod.precio).toFixed(2)}</span>
+                  <span>$${prod.precio_unitario.toFixed(2)}</span>
+                  <span>$${(prod.cantidad * prod.precio_unitario).toFixed(
+                    2
+                  )}</span>
                 </div>
               `
             )
@@ -86,13 +94,16 @@ const FacturaPdfView = ({ route, navigation }) => {
   `;
 
     try {
-      // Genera el PDF a partir del HTML
+
       const { uri } = await Print.printToFileAsync({ html: htmlContent });
+      console.log("PDF URI generado:", uri);
       setPdfPath(uri);
 
-      // Si se desea compartir el PDF y está disponible en la plataforma
-      if (await Sharing.isAvailableAsync()) {
+      const sharingAvailable = await Sharing.isAvailableAsync();
+
+      if (sharingAvailable) {
         await Sharing.shareAsync(uri);
+ 
       } else {
         console.log("El compartir PDF no está disponible en esta plataforma.");
       }

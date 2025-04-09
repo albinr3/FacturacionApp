@@ -26,12 +26,29 @@ import {
 import { syncWithSupabase } from "../database/sync";
 
 const Facturacion = ({ navigation }) => {
+
+  // 1. Creamos la referencia
+  const inputRef = useRef(null);
+  const [textoBusqueda, setTextoBusqueda] = useState("");
+
+ 
+
   // Estados para modales y búsqueda
   const [visible, setVisible] = useState(false); // Modal para seleccionar cliente
   const [visible2, setVisible2] = useState(false); // Modal para seleccionar producto
   const [visibleModalResumen, setVisibleModalResumen] = useState(false); // Modal de resumen
   const [buscarTextoC, setBuscarTextoC] = useState("");
   const [buscarTextoProducto, setBuscarTextoProducto] = useState("");
+
+
+   // 2. Cuando `visible` sea true, forzamos el focus (con pequeño delay si hace falta)
+   useEffect(() => {
+    if (visible) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [visible]);
 
   // Estados para clientes y productos cargados desde SQLite
   const [clientes, setClientes] = useState([]);
@@ -166,11 +183,12 @@ const Facturacion = ({ navigation }) => {
         0
       );
       // Obtén la fecha actual en formato YYYY-MM-DD
-      const fecha = new Date().toISOString().split("T")[0];
+      const fecha = new Date();
+      const fechaLocal = fecha.toLocaleDateString('en-CA'); // Formato YYYY-MM-DD
       // Inserta la factura y sus detalles (la función createFacturaConDetalles debe estar definida en sqlMethods)
       const numero_factura = await createFacturaConDetalles(
         monto,
-        fecha,
+        fechaLocal,
         condicion,
         clienteSeleccionado.id,
         productosSeleccionados
@@ -210,9 +228,10 @@ const Facturacion = ({ navigation }) => {
       "Condición de Pago",
       "¿Desea que la factura sea a contado o a crédito?",
       [
-        { text: "Contado", onPress: () => processFactura("contado") },
-        { text: "Crédito", onPress: () => processFactura("credito") },
+        { text: "Contado", onPress: () => processFactura("Contado") },
+        { text: "Crédito", onPress: () => processFactura("Credito") },
         { text: "Cancelar", style: "cancel" },
+
       ]
     );
   };
@@ -268,7 +287,7 @@ const Facturacion = ({ navigation }) => {
       </View>
       {/* Buscador de Clientes */}
       <View style={styles.buscador}>
-        <Pressable onPress={() => setVisible(true)}>
+        <Pressable onPress={() => setVisible(true)} style={{width:"85%"}}>
           <TextInput
             editable={false}
             placeholder="Buscar Cliente"
@@ -300,11 +319,12 @@ const Facturacion = ({ navigation }) => {
         <Modal visible={visible} animationType="slide" transparent={true}>
           <View
             style={styles.modalContainer}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+           
           >
             <View style={styles.modalContent}>
               <TextInput
-                autoFocus
+                
+                ref={inputRef}
                 style={styles.inputBuscar}
                 placeholder="Buscar cliente..."
                 value={buscarTextoC}
@@ -320,7 +340,7 @@ const Facturacion = ({ navigation }) => {
                   >
                     <Text style={styles.nombreCliente}>{item.nombre}</Text>
                     <Text style={styles.infoCliente}>
-                      {item.telefono} - {item.direccion}
+                    {item.direccion} - {item.telefono}
                     </Text>
                   </Pressable>
                 )}

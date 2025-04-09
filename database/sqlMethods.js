@@ -154,7 +154,12 @@ export const insertFactura = async (monto, fecha, condicion, cliente_id) => {
 export const getFacturas = async () => {
   const db = getDB();
   try {
-    const result = await db.getAllAsync("SELECT * FROM Facturas ORDER BY numero_factura DESC;");
+    const result = await db.getAllAsync(`
+      SELECT F.numero_factura, F.monto, F.fecha, F.condicion, F.cliente_id, C.nombre AS cliente
+      FROM Facturas F
+      LEFT JOIN Clientes C ON F.cliente_id = C.id
+      ORDER BY F.numero_factura ASC;
+    `);
     return result;
   } catch (err) {
     console.error("❌ Error al obtener facturas:", err);
@@ -199,7 +204,11 @@ export const getDetalleFacturaByNumero = async (numero_factura) => {
   const db = getDB();
   try {
     const result = await db.getAllAsync(
-      "SELECT * FROM DetalleFactura WHERE numero_factura = ? ORDER BY id ASC;",
+      `SELECT D.id, D.numero_factura, D.sku, D.cantidad, D.precio_unitario, P.descripcion, P.referencia
+       FROM DetalleFactura D
+       LEFT JOIN Productos P ON D.sku = P.sku
+       WHERE D.numero_factura = ?
+       ORDER BY D.id ASC;`,
       [numero_factura]
     );
     return result;
@@ -208,6 +217,7 @@ export const getDetalleFacturaByNumero = async (numero_factura) => {
     return [];
   }
 };
+
 
 // Actualizar un detalle de factura existente
 export const updateDetalleFactura = async (id, numero_factura, sku, cantidad, precio_unitario) => {
