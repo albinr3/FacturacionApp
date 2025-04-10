@@ -137,12 +137,12 @@ export const updateProveedor = async (id, nombre_proveedor, direccion, telefono)
 // ***********************
 
 // Insertar una nueva factura
-export const insertFactura = async (monto, fecha, condicion, cliente_id) => {
+export const insertFactura = async (monto, fecha, condicion, cliente_id, pagada) => {
   const db = getDB();
   try {
     await db.runAsync(
-      "INSERT INTO Facturas (monto, fecha, condicion, cliente_id) VALUES (?, ?, ?, ?);",
-      [monto, fecha, condicion, cliente_id]
+      "INSERT INTO Facturas (monto, fecha, condicion, cliente_id, pagada) VALUES (?, ?, ?, ?, ?);",
+      [monto, fecha, condicion, cliente_id, pagada]
     );
     console.log("✅ Factura insertada con éxito");
   } catch (err) {
@@ -155,7 +155,7 @@ export const getFacturas = async () => {
   const db = getDB();
   try {
     const result = await db.getAllAsync(`
-      SELECT F.numero_factura, F.monto, F.fecha, F.condicion, F.cliente_id, C.nombre AS cliente
+      SELECT F.numero_factura, F.monto, F.fecha, F.condicion, F.cliente_id, F.pagada, C.nombre AS cliente
       FROM Facturas F
       LEFT JOIN Clientes C ON F.cliente_id = C.id
       ORDER BY F.numero_factura ASC;
@@ -167,13 +167,48 @@ export const getFacturas = async () => {
   }
 };
 
+export const migrarFacturas = async () => {
+  const db = getDB();
+  try {
+    // 1. Crear nueva tabla
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS FacturasCopia (
+        numero_factura INTEGER PRIMARY KEY AUTOINCREMENT,
+        monto REAL NOT NULL,
+        fecha TEXT NOT NULL,
+        condicion TEXT NOT NULL,
+        cliente_id INTEGER,
+        pagada INTEGER DEFAULT 0,
+        FOREIGN KEY (cliente_id) REFERENCES Clientes(id)
+      );
+    `);
+
+    // 2. Copiar datos
+    await db.runAsync(`
+      INSERT INTO FacturasCopia (numero_factura, monto, fecha, condicion, cliente_id, pagada)
+      SELECT numero_factura, monto, fecha, condicion, cliente_id, 0 FROM Facturas;
+    `);
+
+    // 3. Eliminar tabla antigua
+    await db.runAsync(`DROP TABLE Facturas;`);
+
+    // 4. Renombrar tabla nueva
+    await db.runAsync(`ALTER TABLE FacturasCopia RENAME TO Facturas;`);
+
+    console.log('✅ Migración de Facturas completada con éxito');
+  } catch (err) {
+    console.error('❌ Error durante la migración de Facturas:', err);
+  }
+};
+
+
 // Actualizar una factura existente
-export const updateFactura = async (numero_factura, monto, fecha, condicion, cliente_id) => {
+export const updateFactura = async (numero_factura, monto, fecha, condicion, cliente_id, pagada) => {
   const db = getDB();
   try {
     await db.runAsync(
-      "UPDATE Facturas SET monto = ?, fecha = ?, condicion = ?, cliente_id = ? WHERE numero_factura = ?;",
-      [monto, fecha, condicion, cliente_id, numero_factura]
+      "UPDATE Facturas SET monto = ?, fecha = ?, condicion = ?, cliente_id = ?, pagada = ? WHERE numero_factura = ?;",
+      [monto, fecha, condicion, cliente_id, pagada, numero_factura]
     );
     console.log("✅ Factura actualizada con éxito");
   } catch (err) {
@@ -234,10 +269,10 @@ export const updateDetalleFactura = async (id, numero_factura, sku, cantidad, pr
 };
 
 
-export const createFacturaConDetalles = async (monto, fecha, condicion, clienteId, detalles) => {
+export const createFacturaConDetalles = async (monto, fecha, condicion, clienteId, detalles, pagada) => {
   try {
     // Inserta la factura
-    await insertFactura(monto, fecha, condicion, clienteId);
+    await insertFactura(monto, fecha, condicion, clienteId, pagada);
 
     // Recupera el último ID insertado en la tabla Facturas
     const db = getDB();

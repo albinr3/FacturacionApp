@@ -45,6 +45,7 @@ export const initDB = async () => {
         fecha TEXT NOT NULL,
         condicion TEXT NOT NULL, -- 'credito' o 'contado'
         cliente_id INTEGER,
+        pagada INTEGER DEFAULT 0,
         FOREIGN KEY (cliente_id) REFERENCES Clientes(id)
       );
     `);

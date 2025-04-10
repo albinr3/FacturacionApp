@@ -17,11 +17,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Network from "expo-network";
 
+
 // Importar métodos SQL y sincronización con Supabase
 import {
   getClientes,
   getProductos,
   createFacturaConDetalles,
+  updateProducto
 } from "../database/sqlMethods";
 import { syncWithSupabase } from "../database/sync";
 
@@ -139,17 +141,39 @@ const Facturacion = ({ navigation }) => {
   // Función para actualizar la cantidad de un producto (usando sku como clave)
   const actualizarCantidadProducto = (sku, valor) => {
     const cantidad = parseInt(valor, 10) || 0;
+    // Buscamos el producto por su sku en el array de productos
+    const producto = productos.find(p => p.sku.toString() === sku.toString());
+    
+    if (producto && cantidad > producto.existencia) {
+      Alert.alert(
+        "Cantidad Excedida",
+        "La cantidad ingresada supera la existencia disponible."
+      );
+      return;
+    }
+  
     setCantidadesProductos({
       ...cantidadesProductos,
       [sku]: cantidad,
     });
   };
-
-  // Función para incrementar la cantidad de un producto
+  
   const incrementarCantidadProducto = (sku) => {
+    const cantidadActual = cantidadesProductos[sku] || 0;
+    // Buscamos el producto para verificar su existencia
+    const producto = productos.find(p => p.sku.toString() === sku.toString());
+  
+    if (producto && (cantidadActual + 1 > producto.existencia)) {
+      Alert.alert(
+        "Cantidad Excedida",
+        "No puedes seleccionar más que la existencia disponible."
+      );
+      return;
+    }
+  
     setCantidadesProductos({
       ...cantidadesProductos,
-      [sku]: (cantidadesProductos[sku] || 0) + 1,
+      [sku]: cantidadActual + 1,
     });
   };
 
@@ -174,44 +198,66 @@ const Facturacion = ({ navigation }) => {
   };
 
   // Función para procesar y guardar la factura con la condición elegida
-  const processFactura = async (condicion) => {
-    setLoading(true);
-    try {
-      // Calcula el monto total sumando el precio por la cantidad de cada producto seleccionado
-      const monto = productosSeleccionados.reduce(
-        (acc, prod) => acc + prod.precio * prod.cantidad,
-        0
-      );
-      // Obtén la fecha actual en formato YYYY-MM-DD
-      const fecha = new Date();
-      const fechaLocal = fecha.toLocaleDateString('en-CA'); // Formato YYYY-MM-DD
-      // Inserta la factura y sus detalles (la función createFacturaConDetalles debe estar definida en sqlMethods)
-      const numero_factura = await createFacturaConDetalles(
-        monto,
-        fechaLocal,
-        condicion,
-        clienteSeleccionado.id,
-        productosSeleccionados
-      );
+// Dentro de tu función processFactura, luego de crear la factura:
+const processFactura = async (condicion) => {
+  const pagada = condicion === "Contado" ? 1 : 0;
+  setLoading(true);
+  try {
+    // Calcular el monto total
+    const monto = productosSeleccionados.reduce(
+      (acc, prod) => acc + prod.precio * prod.cantidad,
+      0
+    );
+    // Obtener la fecha actual en formato YYYY-MM-DD
+    const fecha = new Date();
+    const fechaLocal = fecha.toLocaleDateString('en-CA');
+    
+    // Insertar la factura y sus detalles
+    const numero_factura = await createFacturaConDetalles(
+      monto,
+      fechaLocal,
+      condicion,
+      clienteSeleccionado.id,
+      productosSeleccionados,
+      pagada
+    );
 
-      // Luego de insertar localmente, sincroniza con Supabase
-      await syncWithSupabase();
-
-      Alert.alert(
-        "Éxito",
-        "Factura guardada correctamente. Factura N°: " + numero_factura
+    // Actualizar la existencia de cada producto facturado
+    for (const producto of productosSeleccionados) {
+      // Calcula la nueva existencia, asegurándote que no sea negativa.
+      const nuevaExistencia = producto.existencia - producto.cantidad;
+      
+      // Actualizar el producto en la base de datos.
+      // La función updateProducto recibe: sku, descripcion, referencia, precio, nueva existencia y proveedor_id
+      await updateProducto(
+        producto.sku,
+        producto.descripcion,
+        producto.referencia,
+        producto.precio,
+        nuevaExistencia >= 0 ? nuevaExistencia : 0,  // Evitamos números negativos
+        producto.proveedor_id
       );
-
-      // Reinicia los estados: limpia el cliente seleccionado y el grid de productos
-      setClienteSeleccionado(null);
-      setProductosSeleccionados([]);
-      setCantidadesProductos({});
-    } catch (error) {
-      console.error("Error al guardar factura:", error);
-      Alert.alert("Error", "No se pudo guardar la factura");
     }
-    setLoading(false);
-  };
+
+    // Sincronización (si tenés lógica de sincronización)
+    await syncWithSupabase();
+
+    Alert.alert(
+      "Éxito",
+      "Factura guardada correctamente. Factura N°: " + numero_factura
+    );
+
+    // Reiniciamos los estados pertinentes
+    setClienteSeleccionado(null);
+    setProductosSeleccionados([]);
+    setCantidadesProductos({});
+  } catch (error) {
+    console.error("Error al guardar factura:", error);
+    Alert.alert("Error", "No se pudo guardar la factura");
+  }
+  setLoading(false);
+};
+
 
   // Función para guardar la factura, solicitando primero la condición
   const guardarFactura = () => {
@@ -685,6 +731,7 @@ const Facturacion = ({ navigation }) => {
         />
         <Text style={styles.buttonText}>Guardar</Text>
       </Pressable>
+
     </SafeAreaView>
   );
 };
@@ -701,7 +748,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   iconFac: { fontSize: 64, color: "white" },
-  headerText: {},
+  headerText: { flex: 1},
   textBox: {
     minHeight: 60,
     backgroundColor: "#fff",

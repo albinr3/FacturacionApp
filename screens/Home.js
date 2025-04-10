@@ -114,7 +114,7 @@ export default function Home({ navigation }) {
               name="image-album"
               style={styles.iconBlog}
             ></MaterialCommunityIcons>
-            <Text style={styles.textButton}>Facturas</Text>
+            <Text style={styles.textButton}>Consulta Facturas</Text>
           </Pressable>
         </View>
       </View>

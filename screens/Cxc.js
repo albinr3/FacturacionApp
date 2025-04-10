@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -7,107 +7,149 @@ import {
   FlatList,
   Pressable,
   Modal,
+  Keyboard,
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Keyboard } from "react-native";
+import * as Network from "expo-network";
 
-// Importa Picker si lo usaras, pero aquí usamos checkboxes
+// Se importan los métodos SQL en vez de usar datos estáticos
+import { getClientes, getFacturas, updateFactura } from "../database/sqlMethods";
+import { syncWithSupabase } from "../database/sync";
 
-// Lista de clientes de ejemplo, cada uno con facturas pendientes
-const clientes = [
-  {
-    id: "1",
-    nombre: "Juan Pérez",
-    telefono: "809-555-1234",
-    direccion: "Calle 10, Santo Domingo",
-    facturas: [
-      { numero: "F001", monto: 1530.75, fecha: "2024-03-10" },
-      { numero: "F002", monto: 9000.5, fecha: "2024-03-15" },
-    ],
-  },
-  {
-    id: "2",
-    nombre: "María González",
-    telefono: "829-888-5678",
-    direccion: "Av. Principal, Santiago",
-    facturas: [],
-  },
-  {
-    id: "3",
-    nombre: "Carlos Ramírez",
-    telefono: "849-777-9123",
-    direccion: "Calle B, La Vega",
-    facturas: [{ numero: "F003", monto: 2000, fecha: "2024-02-28" }],
-  },
-  {
-    id: "4",
-    nombre: "Ana López",
-    telefono: "809-333-4567",
-    direccion: "Calle C, San Cristóbal",
-    facturas: [],
-  },
-  {
-    id: "5",
-    nombre: "Pedro Martínez",
-    telefono: "829-222-7890",
-    direccion: "Av. Duarte, Puerto Plata",
-    facturas: [
-      { numero: "F004", monto: 3200.3, fecha: "2024-03-05" },
-      { numero: "F005", monto: 1500.0, fecha: "2024-03-12" },
-    ],
-  },
-];
+const CuentasPorCobrar = ({ navigation }) => {
 
-const CuentasPorCobrar = ({navigation}) => {
-  // Estados para manejo del modal y búsqueda de clientes
+    // Función para sincronizar con Supabase si hay conexión
+    const checkSync = async () => {
+      const net = await Network.getNetworkStateAsync();
+      if (net.isConnected && net.isInternetReachable) {
+        await syncWithSupabase();
+        console.log("Si había internet");
+      } else {
+        console.log("⚠️ No se puede conectar a internet");
+      }
+    };
+  // Estados para el modal y búsqueda de clientes
+  //
+  //
   const [visible, setVisible] = useState(true);
   const [buscarTexto, setBuscarTexto] = useState("");
-  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
-  const [clientesFiltrados, setClientesFiltrados] = useState(clientes);
+  // Estados para clientes (obtenidos de la base de datos) y el filtrado en el modal
+  const [clientes, setClientes] = useState([]);
+  const [clientesFiltrados, setClientesFiltrados] = useState([]);
 
-  // Estado para manejar cuáles facturas se han seleccionado para cobrar.
-  // Usamos un objeto donde la clave es el número de factura y el valor es true/false.
+  // El cliente actualmente seleccionado
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+
+  // Facturas del cliente seleccionado, que se cargarán desde SQL
+  const [facturasCliente, setFacturasCliente] = useState([]);
+
+  // Estado para manejar la selección de facturas (checkbox)
   const [facturasSeleccionadas, setFacturasSeleccionadas] = useState({});
 
-  // Función para filtrar clientes en el modal
+  // Función para cargar clientes desde SQLite mediante getClientes()
+  const loadClientes = async () => {
+    try {
+      const data = await getClientes();
+      setClientes(data);
+      setClientesFiltrados(data);
+    } catch (err) {
+      console.error("Error cargando clientes:", err);
+    }
+  };
+
+  // Función para filtrar clientes en tiempo real usando el texto ingresado
+  //
   const filtrarClientes = (texto) => {
     setBuscarTexto(texto);
-
-    // 🔹 Filtra la lista de clientes en tiempo real
     const filtrados = clientes.filter((cliente) =>
       cliente.nombre.toLowerCase().includes(texto.toLowerCase())
     );
-
     setClientesFiltrados(filtrados);
   };
 
-  // Función para seleccionar un cliente y cerrar el modal
-  const seleccionarCliente = (cliente) => {
+  // Al seleccionar un cliente desde el modal: // • Se guarda el cliente seleccionado
+  // • Se cierra el modal
+  // • Se reinicia el texto de búsqueda y la selección de facturas
+  // • Se cargan las facturas asociadas al cliente usando getFacturas()
+  const seleccionarCliente = async (cliente) => {
     setClienteSeleccionado(cliente);
     setVisible(false);
     setBuscarTexto("");
     setClientesFiltrados(clientes);
-    // Reinicia la selección de facturas al cambiar de cliente
     setFacturasSeleccionadas({});
-    Keyboard.dismiss(); // 🔹 Oculta el teclado y quita el foco del TextInput
+    Keyboard.dismiss();
+    try {
+      const allFacturas = await getFacturas();
+      const facturasDelCliente = allFacturas.filter(
+        (factura) =>
+          factura.cliente_id === cliente.id &&
+          factura.pagada == 0
+      );
+
+      setFacturasCliente(facturasDelCliente);
+    } catch (err) {
+      console.error("Error cargando facturas para el cliente:", err);
+      setFacturasCliente([]);
+    }
   };
 
-  // Función para alternar la selección de una factura
-  const toggleFactura = (numero) => {
+  // Alterna la selección de una factura (usando el número de factura como clave)
+  const toggleFactura = (numero_factura) => {
     setFacturasSeleccionadas({
       ...facturasSeleccionadas,
-      [numero]: !facturasSeleccionadas[numero],
+      [numero_factura]: !facturasSeleccionadas[numero_factura],
     });
   };
 
   // Calcula el total a cobrar sumando el monto de las facturas seleccionadas
   const totalCobrar =
-    clienteSeleccionado && clienteSeleccionado.facturas
-      ? clienteSeleccionado.facturas
-          .filter((factura) => facturasSeleccionadas[factura.numero])
+    facturasCliente && facturasCliente.length > 0
+      ? facturasCliente
+          .filter((factura) => facturasSeleccionadas[factura.numero_factura])
           .reduce((acc, factura) => acc + factura.monto, 0)
       : 0;
+
+  useEffect(() => {
+    loadClientes();
+  }, []);
+
+  // Función para actualizar las facturas seleccionadas a "pagada"
+const guardarPagos = async () => {
+  // Recorremos las facturas del cliente y actualizamos las que están seleccionadas.
+  try {
+    for (const factura of facturasCliente) {
+      // Si la factura fue seleccionada en el objeto facturasSeleccionadas
+      if (facturasSeleccionadas[factura.numero_factura]) {
+        // Llamamos a updateFactura pasando los datos existentes pero poniendo pagada = 1
+        await updateFactura(
+          factura.numero_factura,
+          factura.monto,
+          factura.fecha,
+          factura.condicion,
+          factura.cliente_id,
+          1 // pagada en 1, es decir, true
+        );
+      }
+    }
+    alert('Éxito: Las facturas seleccionadas han sido marcadas como pagadas.');
+
+    //Sincronizamos con supabase
+    checkSync()
+    // Actualizamos la lista de facturas pendientes filtrando nuevamente
+    const allFacturas = await getFacturas();
+    const facturasActualizadas = allFacturas.filter(
+      (factura) =>
+        factura.cliente_id === clienteSeleccionado.id && factura.pagada == 0
+    );
+    setFacturasCliente(facturasActualizadas);
+
+  } catch (error) {
+    console.error("Error al actualizar facturas:", error);
+    alert("Error: No se pudo marcar las facturas como pagadas.");
+  }
+};
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -119,11 +161,9 @@ const CuentasPorCobrar = ({navigation}) => {
             style={styles.iconTitle}
           />
         </Pressable>
-
         <Text style={styles.textTitle}>CUENTAS POR COBRAR</Text>
         <MaterialCommunityIcons name="cash-multiple" style={styles.iconTitle} />
       </View>
-
       {/* Datos del Cliente */}
       <View style={styles.header}>
         <View style={styles.headerIcon}>
@@ -157,8 +197,7 @@ const CuentasPorCobrar = ({navigation}) => {
           </View>
         </View>
       </View>
-
-      {/* Buscador de Clientes (abre el modal tanto al escribir como al tocar el ícono) */}
+      {/* Buscador de Clientes (abre el modal al escribir o al tocar el ícono) */}
       <View style={styles.buscador}>
         <TextInput
           style={{ flex: 1 }}
@@ -166,11 +205,10 @@ const CuentasPorCobrar = ({navigation}) => {
           value={buscarTexto}
           onChangeText={(texto) => {
             setBuscarTexto(texto);
-            setVisible(true); // 🔹 Abre el modal al escribir
-            filtrarClientes(texto); // 🔹 Filtra directamente al escribir
+            setVisible(true);
+            filtrarClientes(texto);
           }}
         />
-
         <Pressable onPress={() => setVisible(true)} style={styles.buscadorIcon}>
           <MaterialCommunityIcons
             name="account-search-outline"
@@ -178,7 +216,6 @@ const CuentasPorCobrar = ({navigation}) => {
           />
         </Pressable>
       </View>
-
       {/* Modal de Búsqueda de Clientes */}
       <Modal visible={visible} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
@@ -186,13 +223,12 @@ const CuentasPorCobrar = ({navigation}) => {
             <TextInput
               style={styles.inputBuscar}
               placeholder="Buscar cliente..."
-              value={buscarTexto} // 🔹 Mantiene sincronizado el texto con el buscador principal
-              onChangeText={filtrarClientes} // 🔹 Filtra en tiempo real
+              value={buscarTexto}
+              onChangeText={filtrarClientes}
             />
-
             <FlatList
               data={clientesFiltrados}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               renderItem={({ item }) => (
                 <Pressable
                   style={styles.itemCliente}
@@ -214,48 +250,44 @@ const CuentasPorCobrar = ({navigation}) => {
           </View>
         </View>
       </Modal>
-
       {/* Lista de Facturas del Cliente Seleccionado */}
       <View style={styles.listaFacturas}>
-        {clienteSeleccionado &&
-        clienteSeleccionado.facturas &&
-        clienteSeleccionado.facturas.length > 0 ? (
+        {clienteSeleccionado && facturasCliente.length > 0 ? (
           <>
             <Text style={styles.subtitulo}>Facturas Pendientes</Text>
             <FlatList
-              data={clienteSeleccionado?.facturas || []}
-              keyExtractor={(item) => item.numero}
+              data={facturasCliente}
+              keyExtractor={(item) => item.numero_factura.toString()}
               renderItem={({ item }) => (
                 <View style={styles.facturaContainer}>
                   <View>
-                    {/* Primera fila: Factura */}
+                    {/* Fila de la factura */}
                     <View style={styles.facturaRow}>
                       <Text style={styles.facturaLabel}>Factura: </Text>
-                      <Text style={styles.facturaInfo}>{item.numero}</Text>
+                      <Text style={styles.facturaInfo}>
+                        {item.numero_factura}
+                      </Text>
                     </View>
-
-                    {/* Segunda fila: Monto y Fecha */}
+                    {/* Monto y Fecha */}
                     <View style={styles.facturaRow}>
                       <Text style={styles.facturaLabel}>Monto: </Text>
                       <Text style={styles.facturaInfo}>
                         ${item.monto.toFixed(2)}
                       </Text>
-
                       <Text style={[styles.facturaLabel, { marginLeft: 10 }]}>
                         Fecha:{" "}
                       </Text>
                       <Text style={styles.facturaInfo}>{item.fecha}</Text>
                     </View>
                   </View>
-
                   {/* Checkbox de selección */}
                   <Pressable
-                    onPress={() => toggleFactura(item.numero)}
+                    onPress={() => toggleFactura(item.numero_factura)}
                     style={styles.checkboxContainer}
                   >
                     <MaterialCommunityIcons
                       name={
-                        facturasSeleccionadas[item.numero]
+                        facturasSeleccionadas[item.numero_factura]
                           ? "checkbox-marked-outline"
                           : "checkbox-blank-outline"
                       }
@@ -270,15 +302,19 @@ const CuentasPorCobrar = ({navigation}) => {
           <Text style={styles.subtitulo}>No hay facturas pendientes</Text>
         )}
       </View>
-
       {/* Cuadro Total a Cobrar */}
       <View style={styles.cuadroTotal}>
         <Text style={styles.totalTexto}>Total a Cobrar:</Text>
-        <Text style={styles.totalMonto}>${totalCobrar.toFixed(2)}</Text>
+        <Text style={styles.totalMonto}>
+          $
+          {totalCobrar.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </Text>
       </View>
-
       {/* Botón Guardar */}
-      <Pressable style={styles.botonGuardar}>
+      <Pressable style={styles.botonGuardar} onPress={()=>guardarPagos()}>
         <MaterialCommunityIcons
           name="content-save"
           style={styles.iconGuardar}
@@ -297,7 +333,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 14,
   },
-
   facturaContainer: {
     padding: 10,
     backgroundColor: "#fff",
@@ -310,11 +345,14 @@ const styles = StyleSheet.create({
     elevation: 3,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between", // 🔹 Separa la info y el checkbox
+    justifyContent: "space-between",
   },
   iconTitle: { color: "#0073c6", fontSize: 28 },
   textTitle: { fontSize: 19, fontWeight: "bold" },
   header: { flexDirection: "row" },
+  headerText: {
+    flex: 1,
+  },
   headerIcon: {
     padding: 10,
     borderRadius: 14,
@@ -324,7 +362,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   iconFac: { fontSize: 64, color: "white" },
-  headerText: {},
+
   textBox: {
     minHeight: 60,
     backgroundColor: "#fff",
@@ -339,7 +377,12 @@ const styles = StyleSheet.create({
   },
   itemTextbox: { flexDirection: "row", alignItems: "center" },
   iconData: { color: "#0073c6", fontSize: 16, marginRight: 2 },
-  text: { fontSize: 16, minWidth: 232, textAlignVertical: "center" },
+  text: {
+    fontSize: 16,
+    flexShrink: 1,
+    flexWrap: "wrap",
+    textAlignVertical: "center",
+  },
   buscador: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -400,33 +443,16 @@ const styles = StyleSheet.create({
   textoBotonCerrar: { color: "white", fontWeight: "bold" },
   listaFacturas: { flex: 1, marginTop: 10 },
   subtitulo: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
-
-  facturaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 5, // 🔹 Espacio entre filas
-  },
-
+  facturaRow: { flexDirection: "row", alignItems: "center", marginBottom: 5 },
   checkboxContainer: {
-    justifyContent: "center", // 🔹 Centra el checkbox verticalmente
-    alignItems: "flex-end", // 🔹 Lo coloca al final (derecha)
-    width: 50, // 🔹 Define un ancho fijo para mantenerlo alineado
+    justifyContent: "center",
+    alignItems: "flex-end",
+    width: 50,
   },
-
-  facturaInfo: {
-    fontSize: 16,
-    color: "#333",
-  },
-  facturaLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#0073c6",
-  },
+  facturaInfo: { fontSize: 16, color: "#333" },
+  facturaLabel: { fontSize: 16, fontWeight: "bold", color: "#0073c6" },
   facturaText: { fontSize: 16 },
-  checkbox: {
-    fontSize: 28,
-    color: "#0073c6",
-  },
+  checkbox: { fontSize: 28, color: "#0073c6" },
   cuadroTotal: {
     flexDirection: "row",
     justifyContent: "space-between",
