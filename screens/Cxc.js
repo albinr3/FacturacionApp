@@ -8,27 +8,32 @@ import {
   Pressable,
   Modal,
   Keyboard,
+  ActivityIndicator,
+  Alert
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Network from "expo-network";
 
 // Se importan los métodos SQL en vez de usar datos estáticos
-import { getClientes, getFacturas, updateFactura } from "../database/sqlMethods";
+import {
+  getClientes,
+  getFacturas,
+  updateFactura,
+  createReciboConNumero,
+} from "../database/sqlMethods";
 import { syncWithSupabase } from "../database/sync";
 
 const CuentasPorCobrar = ({ navigation }) => {
-
-    // Función para sincronizar con Supabase si hay conexión
-    const checkSync = async () => {
-      const net = await Network.getNetworkStateAsync();
-      if (net.isConnected && net.isInternetReachable) {
-        await syncWithSupabase();
-        console.log("Si había internet");
-      } else {
-        console.log("⚠️ No se puede conectar a internet");
-      }
-    };
+  // Función para sincronizar con Supabase si hay conexión
+  const checkSync = async () => {
+    const net = await Network.getNetworkStateAsync();
+    if (net.isConnected && net.isInternetReachable) {
+      await syncWithSupabase();
+    } else {
+      console.log("⚠️ No se puede conectar a internet");
+    }
+  };
   // Estados para el modal y búsqueda de clientes
   //
   //
@@ -46,6 +51,9 @@ const CuentasPorCobrar = ({ navigation }) => {
 
   // Estado para manejar la selección de facturas (checkbox)
   const [facturasSeleccionadas, setFacturasSeleccionadas] = useState({});
+
+  // Estado para el ActivityIndicator (operaciones en curso)
+  const [loading, setLoading] = useState(false);
 
   // Función para cargar clientes desde SQLite mediante getClientes()
   const loadClientes = async () => {
@@ -84,7 +92,8 @@ const CuentasPorCobrar = ({ navigation }) => {
       const facturasDelCliente = allFacturas.filter(
         (factura) =>
           factura.cliente_id === cliente.id &&
-          factura.pagada == 0
+          factura.pagada === 0 &&
+          factura.cancelada === 0
       );
 
       setFacturasCliente(facturasDelCliente);
@@ -115,41 +124,50 @@ const CuentasPorCobrar = ({ navigation }) => {
   }, []);
 
   // Función para actualizar las facturas seleccionadas a "pagada"
-const guardarPagos = async () => {
-  // Recorremos las facturas del cliente y actualizamos las que están seleccionadas.
-  try {
-    for (const factura of facturasCliente) {
-      // Si la factura fue seleccionada en el objeto facturasSeleccionadas
-      if (facturasSeleccionadas[factura.numero_factura]) {
-        // Llamamos a updateFactura pasando los datos existentes pero poniendo pagada = 1
-        await updateFactura(
-          factura.numero_factura,
-          factura.monto,
-          factura.fecha,
-          factura.condicion,
-          factura.cliente_id,
-          1 // pagada en 1, es decir, true
-        );
+  const guardarPagos = async () => {
+    setLoading(true);
+    try {
+      for (const factura of facturasCliente) {
+        if (facturasSeleccionadas[factura.numero_factura]) {
+          // 1) Marcar factura como pagada
+          await updateFactura(
+            factura.numero_factura,
+            factura.monto,
+            factura.fecha,
+            factura.condicion,
+            factura.cliente_id,
+            1
+          );
+        
+          const fechaRecibo = new Date().toISOString();
+          // 3) Insertar el recibo
+          await createReciboConNumero(
+     
+            fechaRecibo,
+            factura.numero_factura,
+            factura.cliente_id,
+            factura.monto
+          );
+
+          //4) sincronizar con supabase
+          await checkSync();
+        }
       }
+      // 4) Filtrar localmente las facturas ya pagadas
+      const pendientes = facturasCliente.filter(
+        (f) => !facturasSeleccionadas[f.numero_factura]
+      );
+      setFacturasCliente(pendientes);
+      // 5) Limpiar selección y loading
+      setFacturasSeleccionadas({});
+      setLoading(false);
+      Alert.alert("Exito", "✅Factura pagada con exito");
+      // … resto del código
+    } catch (error) {
+      console.error("Error al guardar pagos y recibos:", error);
+      alert("No se pudo guardar los recibos.");
     }
-    alert('Éxito: Las facturas seleccionadas han sido marcadas como pagadas.');
-
-    //Sincronizamos con supabase
-    checkSync()
-    // Actualizamos la lista de facturas pendientes filtrando nuevamente
-    const allFacturas = await getFacturas();
-    const facturasActualizadas = allFacturas.filter(
-      (factura) =>
-        factura.cliente_id === clienteSeleccionado.id && factura.pagada == 0
-    );
-    setFacturasCliente(facturasActualizadas);
-
-  } catch (error) {
-    console.error("Error al actualizar facturas:", error);
-    alert("Error: No se pudo marcar las facturas como pagadas.");
-  }
-};
-
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -314,13 +332,19 @@ const guardarPagos = async () => {
         </Text>
       </View>
       {/* Botón Guardar */}
-      <Pressable style={styles.botonGuardar} onPress={()=>guardarPagos()}>
+      <Pressable style={styles.botonGuardar} onPress={() => guardarPagos()}>
         <MaterialCommunityIcons
           name="content-save"
           style={styles.iconGuardar}
         />
         <Text style={styles.buttonText}>Guardar</Text>
       </Pressable>
+
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#0073c6" />
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -491,6 +515,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginLeft: 2,
+  },
+
+  loadingOverlay: {
+    // Ocupa toda la pantalla
+    ...StyleSheet.absoluteFillObject,
+    // Fondo blanco semi‑transparente (puedes usar rgba(0,0,0,0.5) para gris)
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    // Centrar el contenido
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Asegura que quede por encima de todo
+    zIndex: 1000,
+    elevation: 1000,
   },
 });
 

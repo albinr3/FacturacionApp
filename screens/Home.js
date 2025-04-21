@@ -114,7 +114,18 @@ export default function Home({ navigation }) {
               name="image-album"
               style={styles.iconBlog}
             ></MaterialCommunityIcons>
-            <Text style={styles.textButton}>Consulta Facturas</Text>
+            <Text style={styles.textButton}>CONSULTA FACT</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.buttonBlog}
+            onPress={() => navigation.navigate("ConsultaRecibos")}
+          >
+            <MaterialCommunityIcons
+              name="image-album"
+              style={styles.iconBlog}
+            ></MaterialCommunityIcons>
+            <Text style={styles.textButton}>CONSULTA RECIBOS</Text>
           </Pressable>
         </View>
       </View>

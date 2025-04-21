@@ -1,10 +1,10 @@
-import * as SQLite from 'expo-sqlite';
+import * as SQLite from "expo-sqlite";
 
 let db;
 
 export const initDB = async () => {
   try {
-    db = await SQLite.openDatabaseAsync('mynewdb.db');
+    db = await SQLite.openDatabaseAsync("mynewdb.db");
 
     // Tabla de Clientes
     await db.execAsync(`
@@ -63,15 +63,31 @@ export const initDB = async () => {
       );
     `);
 
-    console.log('✅ Base de datos y tablas inicializadas');
+    // Tabla de Recibos
+    await db.execAsync(`
+  CREATE TABLE IF NOT EXISTS Recibos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero_recibo TEXT UNIQUE NOT NULL,
+    fecha TEXT NOT NULL,
+    factura_id INTEGER NOT NULL,
+    cliente_id INTEGER NOT NULL,
+    monto REAL NOT NULL,
+    FOREIGN KEY (factura_id) REFERENCES Facturas(numero_factura),
+    FOREIGN KEY (cliente_id) REFERENCES Clientes(id)
+  );
+`);
+
+    console.log("✅ Base de datos y tablas inicializadas");
   } catch (err) {
-    console.error('❌ Error al inicializar la DB:', err);
+    console.error("❌ Error al inicializar la DB:", err);
   }
 };
 
 export const getDB = () => {
   if (!db) {
-    throw new Error('❌ La base de datos no está inicializada. ¿Olvidaste llamar initDB()?');
+    throw new Error(
+      "❌ La base de datos no está inicializada. ¿Olvidaste llamar initDB()?"
+    );
   }
   return db;
 };

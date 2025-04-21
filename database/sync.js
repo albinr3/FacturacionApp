@@ -1,117 +1,72 @@
 import { supabase } from './supabase';
-import { 
-  getClientes, 
-  getProductos, 
-  getProveedores, 
-  getFacturas, 
-  getDetalleFacturaByNumero 
+import {
+  getClientes,
+  getProductos,
+  getProveedores,
+  getFacturas,
+  getDetalleFacturaByNumero,
+  getAllRecibos,
 } from './sqlMethods';
 
-export const syncWithSupabase = async () => {
-  // Sincronizar clientes
-  const localClientes = await getClientes();
+// Helper: Upsert en batch con minimal returning
+async function upsertBatch(table, records) {
+  if (!records || records.length === 0) return;
+  const { error } = await supabase
+    .from(table)
+    .upsert(records, { returning: 'minimal' });
+  if (error) console.error(`Error sincronizando ${table}:`, error);
+}
 
-  for (const cliente of localClientes) {
-    const { data, error } = await supabase
-      .from('clientes')
-      .upsert(cliente);
-    if (error) {
-      console.error("Error al sincronizar cliente:", cliente, error);
-    } 
+// Sincronizaciones específicas por tabla
+export async function syncClientes() {
+  const clientes = await getClientes();
+  await upsertBatch('clientes', clientes);
+}
+
+export async function syncProductos() {
+  const productos = await getProductos();
+  await upsertBatch('productos', productos);
+}
+
+export async function syncProveedores() {
+  const proveedores = await getProveedores();
+  await upsertBatch('proveedores', proveedores);
+}
+
+export async function syncFacturas() {
+  const facturas = await getFacturas();
+  // eliminamos campo 'cliente' si existe
+  const payload = facturas.map(({ cliente, ...f }) => f);
+  await upsertBatch('facturas', payload);
+}
+
+export async function syncDetalle() {
+  const facturas = await getFacturas();
+  let allDetalles = [];
+  for (const f of facturas) {
+    const detalles = await getDetalleFacturaByNumero(f.numero_factura);
+    detalles.forEach(({ descripcion, referencia, ...d }) => {
+      allDetalles.push(d);
+    });
   }
+  await upsertBatch('detallefactura', allDetalles);
+}
 
-  // Sincronizar productos
-  const localProductos = await getProductos();
+export async function syncRecibos() {
+  const recibos = await getAllRecibos();
+  // Eliminamos propiedad 'cliente' que viene del JOIN
+  const payload = recibos.map(({ cliente, direccion, ...r }) => r);
+  await upsertBatch('recibos', payload);
+}
 
-  for (const producto of localProductos) {
-    const { data, error } = await supabase
-      .from('productos')
-      .upsert(producto);
-    if (error) {
-      console.error("Error al sincronizar producto:", producto, error);
-    } 
-  }
-
-  // Sincronizar proveedores
-  const localProveedores = await getProveedores();
-  console.log("Local proveedores a sincronizar:", localProveedores);
-  for (const proveedor of localProveedores) {
-    const { data, error } = await supabase
-      .from('proveedores')
-      .upsert(proveedor);
-    if (error) {
-      console.error("Error al sincronizar proveedor:", proveedor, error);
-    } 
-  }
-
-  // Sincronizar facturas
-  const localFacturas = await getFacturas();
-  //console.log("Local facturas a sincronizar:", localFacturas);
-  for (const factura of localFacturas) {
-    const { cliente, ...facturaSinCliente } = factura;
-    const { data, error } = await supabase
-      .from('facturas')
-      .upsert(facturaSinCliente);
-    // Resto de la lógica...
-  }
-
-  // Sincronizar detalle de facturas
-  for (const factura of localFacturas) {
-    const detalles = await getDetalleFacturaByNumero(factura.numero_factura);
-    //console.log(`Detalles de la factura ${factura.numero_factura} a sincronizar:`, detalles);
-    for (const detalle of detalles) {
-      const {descripcion, referencia, ...detalleSinInfo} = detalle
-      const { data, error } = await supabase
-        .from('detallefactura')
-        .upsert(detalleSinInfo);
-      if (error) {
-        
-        console.error("Error al sincronizar detalle de factura:", detalle, error);
-      } 
-    }
-  }
-
-  // Consultar y mostrar los datos del servidor para confirmar la sincronización
-  const { data: serverClientes, error: errorClientes } = await supabase
-    .from('clientes')
-    .select('*');
-  if (errorClientes) {
-    console.error("Error al obtener clientes del servidor:", errorClientes);
-  } 
-
-  const { data: serverProductos, error: errorProductos } = await supabase
-    .from('productos')
-    .select('*');
-  if (errorProductos) {
-    console.error("Error al obtener productos del servidor:", errorProductos);
-  } 
-
-  const { data: serverProveedores, error: errorProveedores } = await supabase
-    .from('proveedores')
-    .select('*');
-  if (errorProveedores) {
-    console.error("Error al obtener proveedores del servidor:", errorProveedores);
-  } 
-
-  const { data: serverFacturas, error: errorFacturas } = await supabase
-    .from('facturas')
-    .select('*');
-  if (errorFacturas) {
-    console.error("Error al obtener facturas del servidor:", errorFacturas);
-  } 
-
-  const { data: serverDetalleFactura, error: errorDetalleFactura } = await supabase
-    .from('detallefactura')
-    .select('*');
-  if (errorDetalleFactura) {
-    console.error("Error al obtener detalle de factura del servidor:", errorDetalleFactura);
-  } 
-
-  return {
-    clientes: serverClientes,
-    productos: serverProductos,
-    proveedores: serverProveedores,
-    facturas: serverFacturas,
-    detalleFactura: serverDetalleFactura,
-  };
-};
+// Sincronización completa (opcional)
+export async function syncWithSupabase() {
+  await Promise.all([
+    syncClientes(),
+    syncProductos(),
+    syncProveedores(),
+    syncFacturas(),
+    syncDetalle(),
+    syncRecibos(),
+  ]);
+}

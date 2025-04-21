@@ -10,41 +10,58 @@ import {
   Alert,
   ActivityIndicator,
   Keyboard,
-  KeyboardAvoidingView,
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Network from "expo-network";
 
-
-// Importar métodos SQL y sincronización con Supabase
+// IMPORTA AQUÍ LOS MÉTODOS DE BD QUE NECESITAS
 import {
   getClientes,
+  getClienteById,
   getProductos,
   createFacturaConDetalles,
-  updateProducto
+  updateProducto,
+  deleteDetallesFactura,
+  // Para modo edición (si aún no lo tienes, deberás crearlo o ajustarlo):
+  updateFactura,
+  insertDetalleFactura,
+  // deleteDetallesFactura // <- Descomenta si lo usas
 } from "../database/sqlMethods";
 import { syncWithSupabase } from "../database/sync";
 
-const Facturacion = ({ navigation }) => {
-
+const Facturacion = ({ navigation, route }) => {
   // 1. Creamos la referencia
   const inputRef = useRef(null);
+
+  // Búsqueda y estados de modales
   const [textoBusqueda, setTextoBusqueda] = useState("");
-
- 
-
-  // Estados para modales y búsqueda
-  const [visible, setVisible] = useState(false); // Modal para seleccionar cliente
+  const [visible, setVisible] = useState(true); // Modal para seleccionar cliente
   const [visible2, setVisible2] = useState(false); // Modal para seleccionar producto
   const [visibleModalResumen, setVisibleModalResumen] = useState(false); // Modal de resumen
   const [buscarTextoC, setBuscarTextoC] = useState("");
   const [buscarTextoProducto, setBuscarTextoProducto] = useState("");
 
+  // Estados para el modo edición
+  const [isEditing, setIsEditing] = useState(false);
+  const [numeroFactura, setNumeroFactura] = useState(null);
+  const [oldDetails, setOldDetails] = useState([]);
 
-   // 2. Cuando `visible` sea true, forzamos el focus (con pequeño delay si hace falta)
-   useEffect(() => {
+  // Estados de clientes/productos y selección
+  const [clientes, setClientes] = useState([]);
+  const [productos, setProductos] = useState([]);
+  const [clientesFiltrados, setClientesFiltrados] = useState([]);
+  const [productosFiltrados, setProductosFiltrados] = useState([]);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+  const [productosSeleccionados, setProductosSeleccionados] = useState([]);
+  const [cantidadesProductos, setCantidadesProductos] = useState({});
+
+  // Loading
+  const [loading, setLoading] = useState(false);
+
+  // Efecto para forzar focus en TextInput al abrir modal de clientes
+  useEffect(() => {
     if (visible) {
       setTimeout(() => {
         inputRef.current?.focus();
@@ -52,23 +69,7 @@ const Facturacion = ({ navigation }) => {
     }
   }, [visible]);
 
-  // Estados para clientes y productos cargados desde SQLite
-  const [clientes, setClientes] = useState([]);
-  const [productos, setProductos] = useState([]);
-
-  // Estados para listas filtradas
-  const [clientesFiltrados, setClientesFiltrados] = useState([]);
-  const [productosFiltrados, setProductosFiltrados] = useState([]);
-
-  // Selección actual de cliente y productos
-  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
-  const [productosSeleccionados, setProductosSeleccionados] = useState([]);
-  const [cantidadesProductos, setCantidadesProductos] = useState({});
-
-  // Estado para ActivityIndicator
-  const [loading, setLoading] = useState(false);
-
-  // Función para cargar clientes desde SQLite
+  // Cargar clientes
   const loadClientes = async () => {
     try {
       const data = await getClientes();
@@ -79,7 +80,7 @@ const Facturacion = ({ navigation }) => {
     }
   };
 
-  // Función para cargar productos desde SQLite
+  // Cargar productos
   const loadProductos = async () => {
     try {
       const data = await getProductos();
@@ -90,24 +91,82 @@ const Facturacion = ({ navigation }) => {
     }
   };
 
-  // Función para verificar conectividad y sincronizar con Supabase
+  // Verificar conectividad y sincronizar
   const checkSync = async () => {
     const net = await Network.getNetworkStateAsync();
     if (net.isConnected && net.isInternetReachable) {
       await syncWithSupabase();
-      console.log("Si había internet");
     } else {
       console.log("⚠️ No se puede conectar a internet");
     }
   };
 
+  // Montaje inicial
   useEffect(() => {
     loadClientes();
     loadProductos();
     checkSync();
   }, []);
 
-  // Función para seleccionar un cliente en el modal
+  // Verificar si entramos en modo edición (si se pasaron factura y detallesFactura)
+  useEffect(() => {
+    const initEdicion = async () => {
+      const params = navigation?.state?.params || route?.params;
+      if (params) {
+        const { factura, detallesFactura } = params;
+
+        if (factura && detallesFactura && productos.length > 0) {
+          setVisible(false)
+          setIsEditing(true);
+          setNumeroFactura(factura.numero_factura);
+          setOldDetails(detallesFactura);
+
+          // Asigna la información del cliente utilizando las propiedades existentes
+          const infoClienteEdit = await getClienteById(factura.cliente_id);
+          if (infoClienteEdit) {
+            setClienteSeleccionado(infoClienteEdit);
+          }
+
+          // Procesamos los detalles de productos (como antes)
+          const productosCargados = detallesFactura.map((detalle) => {
+            console.log("Procesando detalle con sku:", detalle.sku);
+            const productoCompleto = productos.find(
+              (p) =>
+                p.sku &&
+                detalle.sku &&
+                p.sku.toString() === detalle.sku.toString()
+            );
+            if (!productoCompleto) {
+              console.warn("Producto no encontrado para sku:", detalle.sku);
+              return {
+                sku: detalle.sku,
+                descripcion: "Producto no encontrado",
+                cantidad: detalle.cantidad,
+                precio: detalle.precio_unitario,
+              };
+            }
+            return {
+              ...productoCompleto,
+              cantidad: detalle.cantidad,
+              precio: detalle.precio_unitario,
+            };
+          });
+          setProductosSeleccionados(productosCargados);
+
+          // 3) **Inicializa las cantidades** para que el modal las muestre
+          const cantidadesIniciales = {};
+          detallesFactura.forEach((detalle) => {
+            cantidadesIniciales[detalle.sku] = detalle.cantidad;
+          });
+          setCantidadesProductos(cantidadesIniciales);
+        }
+      }
+    };
+
+    initEdicion();
+  }, [navigation, route, productos]);
+
+  // Seleccionar un cliente en el modal
   const seleccionarCliente = (cliente) => {
     setClienteSeleccionado(cliente);
     setVisible(false);
@@ -116,7 +175,7 @@ const Facturacion = ({ navigation }) => {
     Keyboard.dismiss();
   };
 
-  // Función para filtrar clientes según búsqueda
+  // Filtrar clientes
   const filtrarClientes = (texto) => {
     setBuscarTextoC(texto);
     const filtrados = clientes.filter((cliente) =>
@@ -125,7 +184,7 @@ const Facturacion = ({ navigation }) => {
     setClientesFiltrados(filtrados);
   };
 
-  // Función para filtrar productos según búsqueda
+  // Filtrar productos
   const filtrarProductos = (texto) => {
     setBuscarTextoProducto(texto);
     if (texto.trim() === "") {
@@ -138,46 +197,53 @@ const Facturacion = ({ navigation }) => {
     }
   };
 
-  // Función para actualizar la cantidad de un producto (usando sku como clave)
+  // Fuera del componente, podrías usar useMemo o recalcular aquí:
+const oldMap = {};
+oldDetails.forEach(det => { oldMap[det.sku] = det.cantidad; });
+
+  // Actualizar la cantidad de un producto
   const actualizarCantidadProducto = (sku, valor) => {
     const cantidad = parseInt(valor, 10) || 0;
-    // Buscamos el producto por su sku en el array de productos
-    const producto = productos.find(p => p.sku.toString() === sku.toString());
-    
-    if (producto && cantidad > producto.existencia) {
+    const producto = productos.find((p) => p.sku.toString() === sku.toString());
+
+    const oldQty = oldMap[sku] || 0;
+  const maxAllowed = producto.existencia + oldQty;
+    // Ejemplo simple de validación de existencia
+    if (producto && cantidad > maxAllowed) {
       Alert.alert(
         "Cantidad Excedida",
         "La cantidad ingresada supera la existencia disponible."
       );
       return;
     }
-  
     setCantidadesProductos({
       ...cantidadesProductos,
       [sku]: cantidad,
     });
   };
-  
+
+  // Incrementar la cantidad de un producto
   const incrementarCantidadProducto = (sku) => {
     const cantidadActual = cantidadesProductos[sku] || 0;
-    // Buscamos el producto para verificar su existencia
-    const producto = productos.find(p => p.sku.toString() === sku.toString());
-  
-    if (producto && (cantidadActual + 1 > producto.existencia)) {
+    const producto = productos.find((p) => p.sku.toString() === sku.toString());
+
+    const oldQty = oldMap[sku] || 0;
+    const maxAllowed = producto.existencia + oldQty;
+
+    if ( cantidadActual + 1 > maxAllowed) {
       Alert.alert(
         "Cantidad Excedida",
         "No puedes seleccionar más que la existencia disponible."
       );
       return;
     }
-  
     setCantidadesProductos({
       ...cantidadesProductos,
       [sku]: cantidadActual + 1,
     });
   };
 
-  // Función para seleccionar productos (asignando la cantidad final)
+  // Seleccionar productos del modal
   const handleSeleccionarProductos = () => {
     const productosConCantidades = Object.keys(cantidadesProductos)
       .map((sku) => {
@@ -197,69 +263,176 @@ const Facturacion = ({ navigation }) => {
     setVisible2(false);
   };
 
-  // Función para procesar y guardar la factura con la condición elegida
-// Dentro de tu función processFactura, luego de crear la factura:
-const processFactura = async (condicion) => {
-  const pagada = condicion === "Contado" ? 1 : 0;
-  setLoading(true);
-  try {
-    // Calcular el monto total
-    const monto = productosSeleccionados.reduce(
-      (acc, prod) => acc + prod.precio * prod.cantidad,
-      0
-    );
-    // Obtener la fecha actual en formato YYYY-MM-DD
-    const fecha = new Date();
-    const fechaLocal = fecha.toLocaleDateString('en-CA');
-    
-    // Insertar la factura y sus detalles
-    const numero_factura = await createFacturaConDetalles(
-      monto,
-      fechaLocal,
-      condicion,
-      clienteSeleccionado.id,
-      productosSeleccionados,
-      pagada
-    );
-
-    // Actualizar la existencia de cada producto facturado
-    for (const producto of productosSeleccionados) {
-      // Calcula la nueva existencia, asegurándote que no sea negativa.
-      const nuevaExistencia = producto.existencia - producto.cantidad;
-      
-      // Actualizar el producto en la base de datos.
-      // La función updateProducto recibe: sku, descripcion, referencia, precio, nueva existencia y proveedor_id
-      await updateProducto(
-        producto.sku,
-        producto.descripcion,
-        producto.referencia,
-        producto.precio,
-        nuevaExistencia >= 0 ? nuevaExistencia : 0,  // Evitamos números negativos
-        producto.proveedor_id
+  // Crear factura nueva (modo no edición)
+  const processFactura = async (condicion) => {
+    const pagada = condicion === "Contado" ? 1 : 0;
+    setLoading(true);
+    try {
+      const monto = productosSeleccionados.reduce(
+        (acc, prod) => acc + prod.precio * prod.cantidad,
+        0
       );
+      const fecha = new Date();
+      const fechaLocal = fecha.toLocaleDateString("en-CA");
+
+      // Crear factura y detalles
+      const numFact = await createFacturaConDetalles(
+        monto,
+        fechaLocal,
+        condicion,
+        clienteSeleccionado.id,
+        productosSeleccionados,
+        pagada
+      );
+
+      // Actualizar la existencia de cada producto facturado (descontar)
+      for (const producto of productosSeleccionados) {
+        const nuevaExistencia = producto.existencia - producto.cantidad;
+        await updateProducto(
+          producto.sku,
+          producto.descripcion,
+          producto.referencia,
+          producto.precio,
+          nuevaExistencia >= 0 ? nuevaExistencia : 0,
+          producto.proveedor_id
+        );
+      }
+
+      await syncWithSupabase();
+
+      Alert.alert(
+        "Éxito",
+        "Factura guardada correctamente. Factura N°: " + numFact
+      );
+
+      // Limpiar estados
+      setClienteSeleccionado(null);
+      setProductosSeleccionados([]);
+      setCantidadesProductos({});
+      setIsEditing(false);
+      setNumeroFactura(null);
+    } catch (error) {
+      console.error("Error al guardar factura:", error);
+      Alert.alert("Error", "No se pudo guardar la factura");
     }
+    setLoading(false);
+  };
 
-    // Sincronización (si tenés lógica de sincronización)
-    await syncWithSupabase();
+  // Actualizar factura existente (modo edición)
+  const processFacturaEdicion = async (condicion) => {
+    const pagada = condicion === "Contado" ? 1 : 0;
+    setLoading(true);
+    try {
+      const monto = productosSeleccionados.reduce(
+        (acc, prod) => acc + prod.precio * prod.cantidad,
+        0
+      );
+      const fecha = new Date();
+      const fechaLocal = fecha.toLocaleDateString("en-CA");
 
-    Alert.alert(
-      "Éxito",
-      "Factura guardada correctamente. Factura N°: " + numero_factura
-    );
+      // Actualiza la cabecera de la factura
+      await updateFactura(
+        numeroFactura,
+        monto,
+        fechaLocal,
+        condicion,
+        clienteSeleccionado.id,
+        pagada
+      );
 
-    // Reiniciamos los estados pertinentes
-    setClienteSeleccionado(null);
-    setProductosSeleccionados([]);
-    setCantidadesProductos({});
-  } catch (error) {
-    console.error("Error al guardar factura:", error);
-    Alert.alert("Error", "No se pudo guardar la factura");
-  }
-  setLoading(false);
-};
+      await deleteDetallesFactura(numeroFactura);
 
+      for (const detalle of productosSeleccionados) {
+        await insertDetalleFactura(
+          numeroFactura,
+          detalle.sku,
+          detalle.cantidad,
+          detalle.precio
+        );
+      }
 
-  // Función para guardar la factura, solicitando primero la condición
+      // 1) Genera un map con las cantidades originales (oldQty) por sku
+      const oldMap = {};
+      if (oldDetails && Array.isArray(oldDetails)) {
+        oldDetails.forEach((det) => {
+          oldMap[det.sku] = det.cantidad; // cantidad antigua
+        });
+      }
+
+      // 2) Genera un map con las cantidades nuevas (newQty) por sku
+      const newMap = {};
+      productosSeleccionados.forEach((prod) => {
+        newMap[prod.sku] = prod.cantidad; // cantidad nueva
+      });
+
+      // 3) Combina las claves (skus) de ambos maps para no omitir ninguno
+      const allSkus = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
+
+      // 4) Para cada SKU involucrado, calcula la diferencia y ajusta la existencia
+      for (const sku of allSkus) {
+        const oldQty = oldMap[sku] || 0;
+        const newQty = newMap[sku] || 0;
+        const difference = newQty - oldQty; // + = facturamos más, - = facturamos menos
+
+        // Obtener el producto de la base (o del array `productos`) para saber su existencia actual
+        // OJO: si tu `productos` array no refleja la existencia *actualizada*, tendrás que hacer un getProductoBySku() desde la base de datos
+        const producto = productos.find(
+          (p) => p.sku.toString() === sku.toString()
+        );
+        if (!producto) continue; // Si no existe, sáltalo
+
+        // existenciaActual: la que tenías en la base de datos
+        // O la que tengas en tu estado si está sincronizada
+        const existenciaActual = producto.existencia;
+
+        // Nueva existencia = existencia actual - difference
+        // difference positivo => restas
+        // difference negativo => sumas (en la práctica, restar un negativo es sumar)
+        const nuevaExistencia = existenciaActual - difference;
+
+        // Validar que no quede negativa
+        if (nuevaExistencia < 0) {
+          throw new Error(
+            `Stock insuficiente para el producto ${producto.descripcion}. 
+       Se requieren ${difference} unidades adicionales.`
+          );
+        }
+
+        // Actualizar el producto en la DB
+        await updateProducto(
+          producto.sku,
+          producto.descripcion,
+          producto.referencia,
+          producto.precio,
+          nuevaExistencia,
+          producto.proveedor_id
+        );
+      }
+
+      // Listo, al terminar este bucle habrás ajustado la existencia de todos los SKUs,
+      // incrementando o decrementando según la diferencia.
+
+      await syncWithSupabase();
+
+      Alert.alert(
+        "Éxito",
+        "Factura actualizada correctamente. Factura N°: " + numeroFactura
+      );
+
+      // Limpiar estados o navegar
+      setClienteSeleccionado(null);
+      setProductosSeleccionados([]);
+      setCantidadesProductos({});
+      setIsEditing(false);
+      setNumeroFactura(null);
+    } catch (error) {
+      console.error("Error al actualizar factura:", error);
+      Alert.alert("Error", "No se pudo actualizar la factura");
+    }
+    setLoading(false);
+  };
+
+  // Guardar factura (determina si es nueva o edición)
   const guardarFactura = () => {
     if (!clienteSeleccionado) {
       Alert.alert("Error", "Debe seleccionar un cliente");
@@ -269,22 +442,32 @@ const processFactura = async (condicion) => {
       Alert.alert("Error", "Debe seleccionar al menos un producto");
       return;
     }
-    // Mostrar un diálogo para escoger la condición de pago
     Alert.alert(
       "Condición de Pago",
       "¿Desea que la factura sea a contado o a crédito?",
       [
-        { text: "Contado", onPress: () => processFactura("Contado") },
-        { text: "Crédito", onPress: () => processFactura("Credito") },
+        {
+          text: "Contado",
+          onPress: () =>
+            isEditing
+              ? processFacturaEdicion("Contado")
+              : processFactura("Contado"),
+        },
+        {
+          text: "Crédito",
+          onPress: () =>
+            isEditing
+              ? processFacturaEdicion("Credito")
+              : processFactura("Credito"),
+        },
         { text: "Cancelar", style: "cancel" },
-
       ]
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Encabezado de Facturación */}
+      {/* Encabezado */}
       <View style={styles.headerConfig}>
         <Pressable onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons
@@ -292,13 +475,16 @@ const processFactura = async (condicion) => {
             style={styles.iconTitle}
           />
         </Pressable>
-        <Text style={styles.textTitle}>FACTURACION</Text>
+        <Text style={styles.textTitle}>
+          {isEditing ? "Modificar Factura" : "Facturación"}
+        </Text>
         <MaterialCommunityIcons
           name="snowflake-variant"
           style={styles.iconTitle}
         />
       </View>
-      {/* Información del Cliente Seleccionado */}
+
+      {/* Datos del Cliente */}
       <View style={styles.header}>
         <View style={styles.headerIcon}>
           <MaterialCommunityIcons
@@ -331,9 +517,10 @@ const processFactura = async (condicion) => {
           </View>
         </View>
       </View>
+
       {/* Buscador de Clientes */}
       <View style={styles.buscador}>
-        <Pressable onPress={() => setVisible(true)} style={{width:"85%"}}>
+        <Pressable onPress={() => setVisible(true)} style={{ width: "85%" }}>
           <TextInput
             editable={false}
             placeholder="Buscar Cliente"
@@ -347,7 +534,6 @@ const processFactura = async (condicion) => {
             }}
           />
         </Pressable>
-
         <Pressable
           onPress={() => {
             setVisible(true);
@@ -361,15 +547,11 @@ const processFactura = async (condicion) => {
           />
         </Pressable>
 
-        {/* Modal Clientes */}
+        {/* Modal de Clientes */}
         <Modal visible={visible} animationType="slide" transparent={true}>
-          <View
-            style={styles.modalContainer}
-           
-          >
+          <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
               <TextInput
-                
                 ref={inputRef}
                 style={styles.inputBuscar}
                 placeholder="Buscar cliente..."
@@ -386,7 +568,7 @@ const processFactura = async (condicion) => {
                   >
                     <Text style={styles.nombreCliente}>{item.nombre}</Text>
                     <Text style={styles.infoCliente}>
-                    {item.direccion} - {item.telefono}
+                      {item.direccion} - {item.telefono}
                     </Text>
                   </Pressable>
                 )}
@@ -401,7 +583,8 @@ const processFactura = async (condicion) => {
           </View>
         </Modal>
       </View>
-      {/* Botón para seleccionar productos */}
+
+      {/* Botones de Seleccionar Producto y Resumen */}
       <View style={styles.viewBotones}>
         <Pressable
           onPress={() => {
@@ -416,8 +599,13 @@ const processFactura = async (condicion) => {
             Selec. Producto
           </Text>
 
-          {/* Modal de selección de productos */}
-          <Modal visible={visible2} animationType="slide" transparent={true}>
+          {/* Modal de Selección de Productos */}
+          <Modal 
+          visible={visible2} 
+          animationType="slide" 
+          transparent={true}
+          onRequestClose={() => setVisible2(false)}
+          >
             <View style={styles.modalContainer}>
               <View style={styles.modalContent2}>
                 <View style={styles.searchContainer}>
@@ -451,7 +639,7 @@ const processFactura = async (condicion) => {
                           <TextInput
                             style={styles.quantityInput}
                             keyboardType="numeric"
-                            value={String(cantidadesProductos[item.sku] || 0)}
+                            value={String(cantidad)}
                             onChangeText={(text) =>
                               actualizarCantidadProducto(item.sku, text)
                             }
@@ -484,6 +672,7 @@ const processFactura = async (condicion) => {
             </View>
           </Modal>
         </Pressable>
+
         <Pressable
           style={styles.botones}
           onPress={async () => {
@@ -612,9 +801,7 @@ const processFactura = async (condicion) => {
                         styles.cellReferencia,
                         styles.totalText,
                       ]}
-                    >
-                      {/* Vacío */}
-                    </Text>
+                    />
                     <Text
                       style={[
                         styles.cell,
@@ -633,9 +820,7 @@ const processFactura = async (condicion) => {
                         styles.cellCantidad,
                         styles.totalText,
                       ]}
-                    >
-                      {/* Vacío */}
-                    </Text>
+                    />
                     <Text
                       style={[styles.cell, styles.cellPrecio, styles.totalText]}
                     >
@@ -654,7 +839,8 @@ const processFactura = async (condicion) => {
           </Modal>
         </Pressable>
       </View>
-      {/* Grid de productos seleccionados para la factura */}
+
+      {/* Grid principal de productos seleccionados */}
       <View style={styles.grid}>
         <View style={styles.headerRow}>
           <Text style={[styles.cell, styles.cellNumero, styles.headerText]}>
@@ -685,7 +871,7 @@ const processFactura = async (condicion) => {
                 {item.cantidad}
               </Text>
               <Text style={[styles.cell, styles.cellCantidad]}>
-                ${item.precio.toFixed(2)}
+                {"$" + item.precio.toFixed(2)}
               </Text>
             </View>
           )}
@@ -718,20 +904,21 @@ const processFactura = async (condicion) => {
         />
       </View>
 
+      {/* Indicador de Loading */}
       {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#0073c6" />
         </View>
       )}
 
-      <Pressable style={styles.botonGuardar} onPress={() => guardarFactura()}>
+      {/* Botón Guardar */}
+      <Pressable style={styles.botonGuardar} onPress={guardarFactura}>
         <MaterialCommunityIcons
           name="content-save"
           style={styles.iconResumen}
         />
         <Text style={styles.buttonText}>Guardar</Text>
       </Pressable>
-
     </SafeAreaView>
   );
 };
@@ -748,7 +935,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   iconFac: { fontSize: 64, color: "white" },
-  headerText: { flex: 1},
+  headerText: { flex: 1 },
   textBox: {
     minHeight: 60,
     backgroundColor: "#fff",
@@ -869,9 +1056,10 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.5)",
+    paddingTop: 80,                 // ajusta según altura de status bar/header
   },
   modalContent: {
     width: "90%",
@@ -958,7 +1146,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.6)",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 999, // Se asegura que se muestre sobre todo
+    zIndex: 999,
   },
 });
 

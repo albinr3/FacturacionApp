@@ -16,7 +16,7 @@ import * as Network from "expo-network";
 
 // Importar métodos SQL y sincronización con Supabase
 import { getProductos, insertProducto, updateProducto } from "../database/sqlMethods";
-import { syncWithSupabase } from "../database/sync";
+import { syncWithSupabase, syncProductos } from "../database/sync";
 import { getDB } from "../database/database";
 
 const Products = ({ navigation }) => {
@@ -51,8 +51,8 @@ const Products = ({ navigation }) => {
   const checkSync = async () => {
     const net = await Network.getNetworkStateAsync();
     if (net.isConnected && net.isInternetReachable) {
-      await syncWithSupabase();
-      console.log("Si había internet");
+      await syncProductos();
+
     } else {
       console.log("⚠️ No se puede conectar a internet");
     }
@@ -177,6 +177,16 @@ const migrateProductosAddForeignKey = async () => {
   }
 };
 
+const fieldLabels = {
+  sku: "SKU",
+  descripcion: "Descripción",
+  referencia: "Referencia",
+  precio: "Precio",
+  existencia: "Existencia",
+  proveedor_id: "Proveedor ID",
+};
+
+
 
 
   return (
@@ -225,7 +235,7 @@ const migrateProductosAddForeignKey = async () => {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardText}>{item.descripcion}</Text>
                 <Text style={[styles.cardText, { fontSize: 13, color: "#555" }]}>
-                  SKU: {item.sku} · REF: {item.referencia} · Precio: ${item.precio}
+                  SKU: {item.sku} · REF: {item.referencia} · Precio: ${item.precio} · Existencia: {item.existencia}
                 </Text>
               </View>
             </View>
@@ -236,53 +246,55 @@ const migrateProductosAddForeignKey = async () => {
       {/* Modal para crear/editar producto */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {modoEdicion ? "Editar Producto" : "Nuevo Producto"}
-            </Text>
-            {["sku", "descripcion", "referencia", "precio", "existencia", "proveedor_id"].map(
-              (campo) => (
-                <TextInput
-                  key={campo}
-                  style={styles.input}
-                  placeholder={campo.toUpperCase()}
-                  value={productoActual[campo]?.toString()}
-                  onChangeText={(text) =>
-                    setProductoActual((prev) => ({
-                      ...prev,
-                      [campo]:
-                        ["sku", "precio", "existencia", "proveedor_id"].includes(campo)
-                          ? Number(text)
-                          : text,
-                    }))
-                  }
-                  keyboardType={
-                    ["sku", "precio", "existencia", "proveedor_id"].includes(campo)
-                      ? "numeric"
-                      : "default"
-                  }
-                />
-              )
-            )}
-            {loading && (
-              <ActivityIndicator
-                size="large"
-                color="#0073c6"
-                style={{ marginVertical: 10 }}
-              />
-            )}
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Pressable
-                style={styles.btnCancelar}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.btnText}>Cancelar</Text>
-              </Pressable>
-              <Pressable style={styles.btnGuardar} onPress={guardarProducto}>
-                <Text style={styles.btnText}>Guardar</Text>
-              </Pressable>
-            </View>
-          </View>
+        <View style={styles.modalContent}>
+  <Text style={styles.modalTitle}>
+    {modoEdicion ? "Editar Producto" : "Nuevo Producto"}
+  </Text>
+
+  {Object.entries(fieldLabels).map(([campo, label]) => (
+    <View key={campo} style={styles.fieldRow}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        style={[styles.input, { flex: 1 }]}
+        value={productoActual[campo]?.toString()}
+        onChangeText={(text) =>
+          setProductoActual((prev) => ({
+            ...prev,
+            [campo]:
+              ["sku", "precio", "existencia", "proveedor_id"].includes(campo)
+                ? Number(text)
+                : text,
+          }))
+        }
+        keyboardType={
+          ["sku", "precio", "existencia", "proveedor_id"].includes(campo)
+            ? "numeric"
+            : "default"
+        }
+      />
+    </View>
+  ))}
+
+  {loading && (
+    <ActivityIndicator
+      size="large"
+      color="#0073c6"
+      style={{ marginVertical: 10 }}
+    />
+  )}
+  <View style={{ flexDirection: "row", gap: 10 }}>
+    <Pressable
+      style={styles.btnCancelar}
+      onPress={() => setModalVisible(false)}
+    >
+      <Text style={styles.btnText}>Cancelar</Text>
+    </Pressable>
+    <Pressable style={styles.btnGuardar} onPress={guardarProducto}>
+      <Text style={styles.btnText}>Guardar</Text>
+    </Pressable>
+  </View>
+</View>
+
         </View>
       </Modal>
     </SafeAreaView>
@@ -355,11 +367,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 5,
   },
+  fieldRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    width: 100,            // ancho fijo para que todas las labels alineen
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
   input: {
     borderBottomWidth: 1,
     borderBottomColor: "#0073c6",
     fontSize: 16,
     padding: 8,
+    // quita márgenes verticales aquí, ya que el spacing lo da fieldRow
   },
   btnCancelar: {
     flex: 1,

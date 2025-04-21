@@ -58,7 +58,7 @@ const Customers = ({ navigation }) => {
     const net = await Network.getNetworkStateAsync();
     if (net.isConnected && net.isInternetReachable) {
       await syncWithSupabase();
-      console.log("Si habia internet");
+
     } else {
       console.log("⚠️ No se puede conectar a internet");
     }

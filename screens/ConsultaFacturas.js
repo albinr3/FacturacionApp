@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -17,10 +17,15 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Network from "expo-network";
 
 // Importa los métodos SQL y la sincronización con Supabase
-import { getFacturas } from "../database/sqlMethods";
+import {
+  getFacturas,
+  getClientes,
+  getProductos,
+  updateProducto,
+  getDetalleFacturaByNumero,
+  cancelarFactura,
+} from "../database/sqlMethods";
 import { syncWithSupabase } from "../database/sync";
-import { getDetalleFacturaByNumero } from "../database/sqlMethods";
-import { getClientes } from "../database/sqlMethods";
 
 const ConsultaFacturas = ({ navigation }) => {
   // Estado para la lista principal de facturas (cargadas de SQLite)
@@ -50,7 +55,9 @@ const ConsultaFacturas = ({ navigation }) => {
   const loadInvoices = async () => {
     try {
       const data = await getFacturas();
-      setInvoices(data);
+      // Filtrar solo las facturas no canceladas (cancelada = 0)
+      const active = data.filter((inv) => inv.cancelada === 0);
+      setInvoices(active);
     } catch (err) {
       console.error("Error cargando facturas:", err);
     }
@@ -78,7 +85,6 @@ const ConsultaFacturas = ({ navigation }) => {
     const net = await Network.getNetworkStateAsync();
     if (net.isConnected && net.isInternetReachable) {
       await syncWithSupabase();
-      console.log("Si había internet");
     } else {
       console.log("⚠️ No se puede conectar a internet");
     }
@@ -150,6 +156,128 @@ const ConsultaFacturas = ({ navigation }) => {
     setLoading(false);
   };
 
+  // Recibe el número de factura, “re-abona” al stock las cantidades facturadas
+  const actualizarExistencia = async (numeroFactura) => {
+    try {
+      // 1) Obtén detalles de la factura
+      const detalles = await getDetalleFacturaByNumero(numeroFactura);
+      if (!detalles.length) {
+        console.warn(`Factura ${numeroFactura} no tiene detalles`);
+        return;
+      }
+      console.log("detalles obtenidos: ", detalles)
+
+      // 2) Carga todos los productos para buscar por SKU
+      const productos = await getProductos();
+      console.log("productos obtenidos: ", productos)
+
+      // 3) Para cada detalle, aumenta la existencia
+      for (const det of detalles) {
+        const prod = productos.find((p) => p.sku === det.sku);
+        if (!prod) {
+          console.warn(`Producto con SKU ${det.sku} no encontrado`);
+          continue;
+        }
+
+        const nuevaExistencia = prod.existencia + det.cantidad;
+        await updateProducto(
+          prod.sku,
+          prod.descripcion,
+          prod.referencia,
+          prod.precio,
+          nuevaExistencia,
+          prod.proveedor_id
+        );
+        console.log(
+          `SKU ${prod.sku}: existía ${prod.existencia}, reabono ${det.cantidad} → ${nuevaExistencia}`
+        );
+      }
+
+      console.log("✅ Existencias actualizadas correctamente");
+    } catch (error) {
+      console.error("❌ Error en actualizarExistencia:", error);
+      Alert.alert("Error", "No se pudo actualizar la existencia de productos.");
+    }
+  };
+
+  // 1) Función que hace el trabajo de obtener detalles y navegar
+  const handleModifyPress = useCallback(
+    async (invoice) => {
+      setLoading(true);
+      try {
+        const detalles = await getDetalleFacturaByNumero(
+          invoice.numero_factura
+        );
+        navigation.navigate("Facturacion", {
+          factura: invoice,
+          detallesFactura: detalles,
+        });
+      } catch (error) {
+        console.error("Error al cargar detalles de factura:", error);
+        Alert.alert("Error", "No se pudo obtener el detalle de la factura");
+      }
+      setLoading(false);
+    },
+    [navigation]
+  );
+
+  const handleCancelPress = useCallback(
+    async (invoice) => {
+      setLoading(true);
+      try {
+        await cancelarFactura(invoice.numero_factura);
+        await actualizarExistencia(invoice.numero_factura);
+        await checkSync();
+        await loadInvoices();
+        Alert.alert(
+          "Exito",
+          `✅ Factura ${invoice.numero_factura} cancelada con éxito.`
+        );
+      } catch (error) {
+        console.log("Error al cancelar factura: ", error);
+        Alert.alert("Error", "No se pudo cancelar la factura");
+      } finally {
+        setLoading(false);
+        
+      }
+    },
+    [cancelarFactura, loadInvoices, actualizarExistencia]
+  );
+
+  // 2) Función que muestra el Alert y delega en la anterior
+  const handleLongPressInvoice = useCallback(
+    (invoice) => {
+      Alert.alert(
+        "Acción",
+        "¿Qué deseas hacer con esta factura?",
+        [
+          {
+            text: "Modificar Factura",
+            onPress: () => handleModifyPress(invoice),
+            style: "default",
+          },
+          {
+            text: "Cancelar Factura",
+            onPress: () => handleCancelPress(invoice),
+            style: "destructive", // en iOS sale en rojo, en Android igual aparece como opción normal
+          },
+          {
+            text: "Ver Detalle",
+            onPress: () => verFactura(invoice),
+            style: "default",
+          },
+          {
+            text: "Cerrar",
+            onPress: () => {}, // simplemente cierra el diálogo
+            style: "cancel",
+          },
+        ],
+        { cancelable: true }
+      );
+    },
+    [handleModifyPress, verFactura, handleCancelPress]
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header con botón de volver */}
@@ -193,6 +321,7 @@ const ConsultaFacturas = ({ navigation }) => {
           <Pressable
             style={styles.invoiceCard}
             onPress={() => verFactura(item)}
+            onLongPress={() => handleLongPressInvoice(item)}
           >
             <View style={styles.invoiceRow}>
               <Text style={styles.invoiceLabel}>Factura:</Text>
@@ -258,13 +387,13 @@ const ConsultaFacturas = ({ navigation }) => {
 
       {/* Modal de filtro por Fecha */}
       {modalFechaVisible && (
-  <DateTimePicker
-    value={selectedDate}
-    mode="date"
-    display="default"
-    onChange={handleDateChange}
-  />
-)}
+        <DateTimePicker
+          value={selectedDate}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+        />
+      )}
 
       {loading && (
         <View style={styles.loadingOverlay}>

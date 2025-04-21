@@ -11,6 +11,8 @@ import Customers from "../screens/Customers";
 import Proveedores from "../screens/Proveedores";
 import ConsultaFacturas from "../screens/ConsultaFacturas";
 import FacturaPdfView from "../screens/FacturaPdfView";
+import ConsultaRecibos from "../screens/ConsultaRecibos";
+import ReciboPdfView from "../screens/ReciboPdfView";
 
 const Stack = createNativeStackNavigator();
 const { width, height } = Dimensions.get("window");
@@ -29,6 +31,8 @@ const MainStack = () => (
     <Stack.Screen name= "Proveedores" component={Proveedores} options={{ headerShown: false }}/>
     <Stack.Screen name= "ConsultaFacturas" component={ConsultaFacturas} options={{ headerShown: false }}/>
     <Stack.Screen name= "FacturaPdfView" component={FacturaPdfView} options={{ headerShown: false }}/>
+    <Stack.Screen name= "ConsultaRecibos" component={ConsultaRecibos} options={{ headerShown: false }}/>
+    <Stack.Screen name= "ReciboPdfView" component={ReciboPdfView} options={{ headerShown: false }}/>
   </Stack.Navigator>
 );
 
