@@ -282,7 +282,8 @@ oldDetails.forEach(det => { oldMap[det.sku] = det.cantidad; });
         condicion,
         clienteSeleccionado.id,
         productosSeleccionados,
-        pagada
+        pagada,
+        monto
       );
 
       // Actualizar la existencia de cada producto facturado (descontar)
@@ -337,7 +338,8 @@ oldDetails.forEach(det => { oldMap[det.sku] = det.cantidad; });
         fechaLocal,
         condicion,
         clienteSeleccionado.id,
-        pagada
+        pagada,
+        monto
       );
 
       await deleteDetallesFactura(numeroFactura);

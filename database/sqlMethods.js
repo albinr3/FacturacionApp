@@ -158,12 +158,12 @@ export const updateProveedor = async (id, nombre_proveedor, direccion, telefono)
 // ***********************
 
 // Insertar una nueva factura
-export const insertFactura = async (monto, fecha, condicion, cliente_id, pagada) => {
+export const insertFactura = async (monto, fecha, condicion, cliente_id, pagada, saldo) => {
   const db = getDB();
   try {
     await db.runAsync(
-      "INSERT INTO Facturas (monto, fecha, condicion, cliente_id, pagada) VALUES (?, ?, ?, ?, ?);",
-      [monto, fecha, condicion, cliente_id, pagada]
+      "INSERT INTO Facturas (monto, fecha, condicion, cliente_id, pagada, saldo) VALUES (?, ?, ?, ?, ?, ?);",
+      [monto, fecha, condicion, cliente_id, pagada, saldo]
     );
     console.log("✅ Factura insertada con éxito");
   } catch (err) {
@@ -176,7 +176,7 @@ export const getFacturas = async () => {
   const db = getDB();
   try {
     const result = await db.getAllAsync(`
-      SELECT F.numero_factura, F.monto, F.fecha, F.condicion, F.cliente_id, F.pagada, F.cancelada, C.nombre AS cliente
+      SELECT F.numero_factura, F.monto, F.fecha, F.condicion, F.cliente_id, F.pagada, F.cancelada, F.saldo, C.nombre AS cliente
       FROM Facturas F
       LEFT JOIN Clientes C ON F.cliente_id = C.id
       ORDER BY F.numero_factura ASC;
@@ -188,13 +188,36 @@ export const getFacturas = async () => {
   }
 };
 
+// Obtener facturas con saldo > 0
+export const getFacturasPendientesPorCliente = async (cliente_id) => {
+  const db = getDB();
+  return db.getAllAsync(
+    `SELECT numero_factura, saldo
+     FROM Facturas
+     WHERE cliente_id = ? AND saldo > 0 AND cancelada = 0
+     ORDER BY fecha ASC;`,
+    [cliente_id]
+  );
+};
+
+// Actualizar saldo y estado de factura
+export const updateFacturaSaldo = async (numero_factura, nuevoSaldo, pagada) => {
+  const db = getDB();
+  await db.runAsync(
+    `UPDATE Facturas
+        SET saldo = ?, pagada = ?
+      WHERE numero_factura = ?;`,
+    [nuevoSaldo, pagada, numero_factura]
+  );
+};
+
 // Actualizar una factura existente
-export const updateFactura = async (numero_factura, monto, fecha, condicion, cliente_id, pagada) => {
+export const updateFactura = async (numero_factura, monto, fecha, condicion, cliente_id, pagada, saldo) => {
   const db = getDB();
   try {
     await db.runAsync(
-      "UPDATE Facturas SET monto = ?, fecha = ?, condicion = ?, cliente_id = ?, pagada = ? WHERE numero_factura = ?;",
-      [monto, fecha, condicion, cliente_id, pagada, numero_factura]
+      "UPDATE Facturas SET monto = ?, fecha = ?, condicion = ?, cliente_id = ?, pagada = ?, saldo = ? WHERE numero_factura = ?;",
+      [monto, fecha, condicion, cliente_id, pagada, saldo, numero_factura]
     );
     console.log("✅ Factura actualizada con éxito");
   } catch (err) {
@@ -270,10 +293,10 @@ export const updateDetalleFactura = async (id, numero_factura, sku, cantidad, pr
 };
 
 
-export const createFacturaConDetalles = async (monto, fecha, condicion, clienteId, detalles, pagada) => {
+export const createFacturaConDetalles = async (monto, fecha, condicion, clienteId, detalles, pagada, saldo) => {
   try {
     // Inserta la factura
-    await insertFactura(monto, fecha, condicion, clienteId, pagada);
+    await insertFactura(monto, fecha, condicion, clienteId, pagada, saldo);
 
     // Recupera el último ID insertado en la tabla Facturas
     const db = getDB();
@@ -483,3 +506,65 @@ export const cancelarReciboYFactura = async (numero_recibo) => {
 };
 
 
+
+// Cabecera
+export const insertReciboCabecera = async (fecha, cliente_id, monto_total) => {
+  const db = getDB();
+  await db.runAsync(
+    `INSERT INTO RecibosCabecera (fecha, cliente_id, monto_total) VALUES (?, ?, ?);`,
+    [fecha, cliente_id, monto_total]
+  );
+  const [{ id }] = await db.getAllAsync("SELECT last_insert_rowid() AS id;");
+  const numero = `R${String(id).padStart(6, '0')}`;
+  await db.runAsync("UPDATE RecibosCabecera SET numero_recibo = ? WHERE id = ?;", [numero, id]);
+  return { id, numero_recibo: numero };
+};
+
+// Detalle
+export const insertReciboDetalle = async (recibo_id, factura_id, monto_aplicado) => {
+  const db = getDB();
+  await db.runAsync(
+    `INSERT INTO RecibosDetalle (recibo_id, factura_id, monto_aplicado) VALUES (?, ?, ?);`,
+    [recibo_id, factura_id, monto_aplicado]
+  );
+};
+
+//abonar a facturas
+export const abonarCuenta = async (cliente_id, montoAbono) => {
+  const db = getDB();
+  try {
+    await db.runAsync("BEGIN TRANSACTION;");
+    // 1) Insertar cabecera de recibo
+    const { id: reciboId } = await insertReciboCabecera(new Date().toISOString(), cliente_id, montoAbono);
+    // 2) Obtener facturas pendientes ordenadas por fecha
+    const facturas = await db.getAllAsync(
+      `SELECT numero_factura, saldo
+         FROM Facturas
+        WHERE cliente_id = ? AND saldo > 0 AND cancelada = 0
+        ORDER BY fecha ASC;`,
+      [cliente_id]
+    );
+    // 3) Distribuir el abono
+    let restante = montoAbono;
+    for (const f of facturas) {
+      if (restante <= 0) break;
+      const aplicar = Math.min(f.saldo, restante);
+      // 3.1) Detalle de recibo
+      await insertReciboDetalle(reciboId, f.numero_factura, aplicar);
+      // 3.2) Actualizar saldo y estado de factura
+      const nuevoSaldo = f.saldo - aplicar;
+      await db.runAsync(
+        `UPDATE Facturas
+            SET saldo = ?, pagada = ?
+          WHERE numero_factura = ?;`,
+        [nuevoSaldo, nuevoSaldo === 0 ? 1 : 0, f.numero_factura]
+      );
+      restante -= aplicar;
+    }
+    await db.runAsync("COMMIT;");
+    return reciboId;
+  } catch (err) {
+    await db.runAsync("ROLLBACK;");
+    throw err;
+  }
+};

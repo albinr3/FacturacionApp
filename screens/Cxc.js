@@ -9,7 +9,8 @@ import {
   Modal,
   Keyboard,
   ActivityIndicator,
-  Alert
+  Dimensions,
+  Alert,
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,10 +22,15 @@ import {
   getFacturas,
   updateFactura,
   createReciboConNumero,
+  migrateFacturasAddSaldo,
 } from "../database/sqlMethods";
 import { syncWithSupabase } from "../database/sync";
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 const CuentasPorCobrar = ({ navigation }) => {
+
+
   // Función para sincronizar con Supabase si hay conexión
   const checkSync = async () => {
     const net = await Network.getNetworkStateAsync();
@@ -38,6 +44,8 @@ const CuentasPorCobrar = ({ navigation }) => {
   //
   //
   const [visible, setVisible] = useState(true);
+  const [montoAbono, setMontoAbono] = useState("");
+
   const [buscarTexto, setBuscarTexto] = useState("");
   // Estados para clientes (obtenidos de la base de datos) y el filtrado en el modal
   const [clientes, setClientes] = useState([]);
@@ -138,11 +146,10 @@ const CuentasPorCobrar = ({ navigation }) => {
             factura.cliente_id,
             1
           );
-        
+
           const fechaRecibo = new Date().toISOString();
           // 3) Insertar el recibo
           await createReciboConNumero(
-     
             fechaRecibo,
             factura.numero_factura,
             factura.cliente_id,
@@ -299,7 +306,7 @@ const CuentasPorCobrar = ({ navigation }) => {
                     </View>
                   </View>
                   {/* Checkbox de selección */}
-                  <Pressable
+                  {/* <Pressable
                     onPress={() => toggleFactura(item.numero_factura)}
                     style={styles.checkboxContainer}
                   >
@@ -311,7 +318,16 @@ const CuentasPorCobrar = ({ navigation }) => {
                       }
                       style={styles.checkbox}
                     />
-                  </Pressable>
+                  </Pressable> */}
+                  <TextInput
+                    keyboardType="numeric"
+                    placeholder="Monto a abonar"
+                    placeholderTextColor="#999"
+
+                    value={montoAbono}
+                    onChangeText={(t) => setMontoAbono(t)}
+                    style={styles.inputAbono}
+                  />
                 </View>
               )}
             />
@@ -370,6 +386,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  inputAbono: {
+    width: SCREEN_WIDTH - 32,   
+    borderWidth: 1,              // borde fino
+    borderColor: '#0073c6',      // color primario azul
+    borderRadius: 8,             // esquinas redondeadas
+    paddingVertical: 10,         // espacio vertical interno
+    paddingHorizontal: 10,       // espacio horizontal interno
+    marginVertical: 10,          // separación arriba y abajo
+    backgroundColor: '#f0f8ff',  // fondo muy suave azul
+    fontSize: 12,                // tamaño de texto legible
+    color: '#333',               // texto oscuro
+    elevation: 2,                // sombra ligera (Android)
+    shadowColor: '#000',         // sombra (iOS)
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+
+    // evitas que crezca más si algo lo estira
+    flexShrink: 1,
   },
   iconTitle: { color: "#0073c6", fontSize: 28 },
   textTitle: { fontSize: 19, fontWeight: "bold" },
@@ -521,10 +557,10 @@ const styles = StyleSheet.create({
     // Ocupa toda la pantalla
     ...StyleSheet.absoluteFillObject,
     // Fondo blanco semi‑transparente (puedes usar rgba(0,0,0,0.5) para gris)
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    backgroundColor: "rgba(255,255,255,0.8)",
     // Centrar el contenido
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     // Asegura que quede por encima de todo
     zIndex: 1000,
     elevation: 1000,

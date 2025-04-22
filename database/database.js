@@ -77,6 +77,30 @@ export const initDB = async () => {
   );
 `);
 
+    // Tabla de RecibosCabecera
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS RecibosCabecera (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero_recibo    TEXT    UNIQUE NOT NULL,
+  fecha            TEXT NOT NULL,
+  cliente_id       INTEGER NOT NULL,
+  monto_total      REAL NOT NULL,
+  FOREIGN KEY(cliente_id) REFERENCES Clientes(id)
+);
+    `);
+
+        // Tabla de RecibosDetalle
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS RecibosDetalle (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  recibo_id        INTEGER NOT NULL,
+  factura_id       INTEGER NOT NULL,
+  monto_aplicado   REAL,
+  FOREIGN KEY(recibo_id)  REFERENCES RecibosCabecera(id),
+  FOREIGN KEY(factura_id) REFERENCES Facturas(numero_factura)
+);
+        `);
+
     console.log("✅ Base de datos y tablas inicializadas");
   } catch (err) {
     console.error("❌ Error al inicializar la DB:", err);
