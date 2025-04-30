@@ -153,7 +153,7 @@ const ConsultaRecibos = ({ navigation }) => {
     (recibo) => {
       Alert.alert(
         "Acción",
-        "¿Qué deseas hacer con esta factura?",
+        "¿Qué deseas hacer con este recibo?",
         [
           {
             text: "Cerrar",
@@ -174,7 +174,7 @@ const ConsultaRecibos = ({ navigation }) => {
         { cancelable: true }
       );
     },
-    [verRecibo, cancelarReciboYFactura]
+    [verRecibo]
   );
 
   return (

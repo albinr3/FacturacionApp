@@ -23,14 +23,13 @@ import {
   updateFactura,
   createReciboConNumero,
   migrateFacturasAddSaldo,
+  abonarCuenta,
 } from "../database/sqlMethods";
 import { syncWithSupabase } from "../database/sync";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const CuentasPorCobrar = ({ navigation }) => {
-
-
   // Función para sincronizar con Supabase si hay conexión
   const checkSync = async () => {
     const net = await Network.getNetworkStateAsync();
@@ -45,6 +44,9 @@ const CuentasPorCobrar = ({ navigation }) => {
   //
   const [visible, setVisible] = useState(true);
   const [montoAbono, setMontoAbono] = useState("");
+  // al inicio del componente
+  const [montoGlobal, setMontoGlobal] = useState("");
+  const [abonos, setAbonos] = useState({}); // { [numero_factura]: montoStr }
 
   const [buscarTexto, setBuscarTexto] = useState("");
   // Estados para clientes (obtenidos de la base de datos) y el filtrado en el modal
@@ -132,48 +134,122 @@ const CuentasPorCobrar = ({ navigation }) => {
   }, []);
 
   // Función para actualizar las facturas seleccionadas a "pagada"
-  const guardarPagos = async () => {
+  // const guardarPagos = async () => {
+  //   setLoading(true);
+  //   try {
+  //     for (const factura of facturasCliente) {
+  //       if (facturasSeleccionadas[factura.numero_factura]) {
+  //         // 1) Marcar factura como pagada
+  //         await updateFactura(
+  //           factura.numero_factura,
+  //           factura.monto,
+  //           factura.fecha,
+  //           factura.condicion,
+  //           factura.cliente_id,
+  //           1
+  //         );
+
+  //         const fechaRecibo = new Date().toISOString();
+  //         // 3) Insertar el recibo
+  //         await createReciboConNumero(
+  //           fechaRecibo,
+  //           factura.numero_factura,
+  //           factura.cliente_id,
+  //           factura.monto
+  //         );
+
+  //         //4) sincronizar con supabase
+  //         await checkSync();
+  //       }
+  //     }
+  //     // 4) Filtrar localmente las facturas ya pagadas
+  //     const pendientes = facturasCliente.filter(
+  //       (f) => !facturasSeleccionadas[f.numero_factura]
+  //     );
+  //     setFacturasCliente(pendientes);
+  //     // 5) Limpiar selección y loading
+  //     setFacturasSeleccionadas({});
+  //     setLoading(false);
+  //     Alert.alert("Exito", "✅Factura pagada con exito");
+  //     // … resto del código
+  //   } catch (error) {
+  //     console.error("Error al guardar pagos y recibos:", error);
+  //     alert("No se pudo guardar los recibos.");
+  //   }
+  // };
+
+  const aplicarAbonos = async () => {
+    if (!clienteSeleccionado) {
+      return Alert.alert("Error", "Elige un cliente");
+    }
     setLoading(true);
     try {
-      for (const factura of facturasCliente) {
-        if (facturasSeleccionadas[factura.numero_factura]) {
-          // 1) Marcar factura como pagada
-          await updateFactura(
-            factura.numero_factura,
-            factura.monto,
-            factura.fecha,
-            factura.condicion,
-            factura.cliente_id,
-            1
-          );
-
-          const fechaRecibo = new Date().toISOString();
-          // 3) Insertar el recibo
-          await createReciboConNumero(
-            fechaRecibo,
-            factura.numero_factura,
-            factura.cliente_id,
-            factura.monto
-          );
-
-          //4) sincronizar con supabase
-          await checkSync();
-        }
-      }
-      // 4) Filtrar localmente las facturas ya pagadas
-      const pendientes = facturasCliente.filter(
-        (f) => !facturasSeleccionadas[f.numero_factura]
+      // 1) Comienzo de transacción (si tu capa de DB lo permite)
+      // 2) Insertar la cabecera del recibo con el total de todos los abonos
+      const fecha = new Date().toISOString();
+      const { id: reciboId } = await insertReciboCabecera(
+        fecha,
+        clienteSeleccionado.id,
+        Object.values(abonos)
+          .map((m) => parseFloat(m) || 0)
+          .reduce((s, v) => s + v, 0)
       );
-      setFacturasCliente(pendientes);
-      // 5) Limpiar selección y loading
-      setFacturasSeleccionadas({});
+  
+      // 3) Para cada factura con un abono > 0
+      for (const [numFactura, montoStr] of Object.entries(abonos)) {
+        const monto = parseFloat(montoStr);
+        if (isNaN(monto) || monto <= 0) continue;
+        // 3.1) Detalle de recibo
+        await insertReciboDetalle(reciboId, numFactura, monto);
+        // 3.2) Actualizar saldo y estado de la factura
+        const factura = facturasCliente.find(
+          (f) => f.numero_factura.toString() === numFactura
+        );
+        const nuevoSaldo = factura.saldo - monto;
+        await updateFacturaSaldo(
+          factura.numero_factura,
+          nuevoSaldo,
+          nuevoSaldo <= 0 ? 1 : 0
+        );
+      }
+  
+      // 4) Commit de transacción
+      await checkSync();
+      Alert.alert("Éxito", "Abonos aplicados correctamente");
+      setMontoGlobal("");
+      setAbonos({});
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "No se pudo aplicar los abonos");
+    } finally {
       setLoading(false);
-      Alert.alert("Exito", "✅Factura pagada con exito");
-      // … resto del código
-    } catch (error) {
-      console.error("Error al guardar pagos y recibos:", error);
-      alert("No se pudo guardar los recibos.");
     }
+  };
+  
+
+  const distribuirAbono = (texto) => {
+    setMontoGlobal(texto);
+    const totalCents = Math.round(parseFloat(texto || 0) * 100);
+    let restante = totalCents;
+
+    const ordenadas = [...facturasCliente].sort(
+      (a, b) => new Date(a.fecha) - new Date(b.fecha)
+    );
+
+    const nuevos = {};
+    for (const f of ordenadas) {
+      if (restante <= 0) {
+        nuevos[f.numero_factura] = "0.00";
+        continue;
+      }
+      const saldoCents = Math.round(f.saldo * 100);
+      // aplicamos el mínimo entre lo que queda y el saldo
+      const aplicar = Math.min(saldoCents, restante);
+      // guardamos de vuelta como string con dos decimales
+      nuevos[f.numero_factura] = (aplicar / 100).toFixed(2);
+      restante -= aplicar;
+    }
+    setAbonos(nuevos);
   };
 
   return (
@@ -279,6 +355,17 @@ const CuentasPorCobrar = ({ navigation }) => {
       <View style={styles.listaFacturas}>
         {clienteSeleccionado && facturasCliente.length > 0 ? (
           <>
+            <View style={styles.globalInputWrapper}>
+              <TextInput
+                style={styles.inputGlobal}
+                keyboardType="numeric"
+                placeholder="Abono total"
+                placeholderTextColor="#999"
+                value={montoGlobal}
+                onChangeText={distribuirAbono}
+              />
+            </View>
+
             <Text style={styles.subtitulo}>Facturas Pendientes</Text>
             <FlatList
               data={facturasCliente}
@@ -297,7 +384,7 @@ const CuentasPorCobrar = ({ navigation }) => {
                     <View style={styles.facturaRow}>
                       <Text style={styles.facturaLabel}>Monto: </Text>
                       <Text style={styles.facturaInfo}>
-                        ${item.monto.toFixed(2)}
+                        ${item.saldo.toFixed(2)}
                       </Text>
                       <Text style={[styles.facturaLabel, { marginLeft: 10 }]}>
                         Fecha:{" "}
@@ -323,9 +410,13 @@ const CuentasPorCobrar = ({ navigation }) => {
                     keyboardType="numeric"
                     placeholder="Monto a abonar"
                     placeholderTextColor="#999"
-
-                    value={montoAbono}
-                    onChangeText={(t) => setMontoAbono(t)}
+                    value={abonos[item.numero_factura] ?? ""}
+                    onChangeText={(t) => {
+                      setAbonos((prev) => ({
+                        ...prev,
+                        [item.numero_factura]: t,
+                      }));
+                    }}
                     style={styles.inputAbono}
                   />
                 </View>
@@ -348,7 +439,7 @@ const CuentasPorCobrar = ({ navigation }) => {
         </Text>
       </View>
       {/* Botón Guardar */}
-      <Pressable style={styles.botonGuardar} onPress={() => guardarPagos()}>
+      <Pressable style={styles.botonGuardar} onPress={() => aplicarAbonos()}>
         <MaterialCommunityIcons
           name="content-save"
           style={styles.iconGuardar}
@@ -373,6 +464,34 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 14,
   },
+  globalInputWrapper: {
+    paddingHorizontal: 16,
+    marginVertical: 10,
+  },
+  inputGlobal: {
+    width: SCREEN_WIDTH - 32,
+    borderWidth: 1,
+    borderColor: "#0073c6",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#f0f8ff",
+    fontSize: 16,
+    color: "#333",
+    flexShrink: 1,
+  },
+  inputAbono: {
+    width: SCREEN_WIDTH - 32,
+    borderWidth: 1,
+    borderColor: "#0073c6",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: "#f0f8ff",
+    fontSize: 14,
+    color: "#333",
+    flexShrink: 1,
+  },
   facturaContainer: {
     padding: 10,
     backgroundColor: "#fff",
@@ -388,18 +507,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   inputAbono: {
-    width: SCREEN_WIDTH - 32,   
-    borderWidth: 1,              // borde fino
-    borderColor: '#0073c6',      // color primario azul
-    borderRadius: 8,             // esquinas redondeadas
-    paddingVertical: 10,         // espacio vertical interno
-    paddingHorizontal: 10,       // espacio horizontal interno
-    marginVertical: 10,          // separación arriba y abajo
-    backgroundColor: '#f0f8ff',  // fondo muy suave azul
-    fontSize: 12,                // tamaño de texto legible
-    color: '#333',               // texto oscuro
-    elevation: 2,                // sombra ligera (Android)
-    shadowColor: '#000',         // sombra (iOS)
+    width: SCREEN_WIDTH - 32,
+    borderWidth: 1, // borde fino
+    borderColor: "#0073c6", // color primario azul
+    borderRadius: 8, // esquinas redondeadas
+    paddingVertical: 10, // espacio vertical interno
+    paddingHorizontal: 10, // espacio horizontal interno
+    marginVertical: 10, // separación arriba y abajo
+    backgroundColor: "#f0f8ff", // fondo muy suave azul
+    fontSize: 12, // tamaño de texto legible
+    color: "#333", // texto oscuro
+    elevation: 2, // sombra ligera (Android)
+    shadowColor: "#000", // sombra (iOS)
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,

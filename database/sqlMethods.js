@@ -366,7 +366,7 @@ export const createReciboConNumero = async (fecha, factura_id, cliente_id, monto
     const [{ id }] = await db.getAllAsync("SELECT last_insert_rowid() AS id;");
 
     // 3) Generamos el número definitivo
-    const numeroRecibo = `R000${id}`;
+    const numeroRecibo = `R${String(id).padStart(6,'0')}`;
 
     // 4) Lo actualizamos en la fila recién creada
     await db.runAsync(
@@ -476,13 +476,17 @@ export const getReciboById = async (id) => {
 export const cancelarReciboYFactura = async (numero_recibo) => {
   const db = getDB();
   try {
-    // 1) Obtener el id de factura asociado al recibo
+    // 0) Iniciar transacción
+    await db.runAsync("BEGIN TRANSACTION;");
+
+    // 1) Obtener el id de la factura asociado al recibo
     const filas = await db.getAllAsync(
       "SELECT factura_id FROM Recibos WHERE numero_recibo = ?;",
       [numero_recibo]
     );
     if (filas.length === 0) {
       console.warn(`⚠️ No se encontró ningún recibo con número ${numero_recibo}`);
+      await db.runAsync("ROLLBACK;");
       return;
     }
     const facturaId = filas[0].factura_id;
@@ -493,15 +497,22 @@ export const cancelarReciboYFactura = async (numero_recibo) => {
       [numero_recibo]
     );
 
-    // 3) Volver la factura a estado no pagada
+    // 3) Desmarcar la factura (usar la clave primaria 'id' en lugar de 'numero_factura')
     await db.runAsync(
-      "UPDATE Facturas SET pagada = 0 WHERE numero_factura = ?;",
+      "UPDATE Facturas SET pagada = 0 WHERE id = ?;",
       [facturaId]
     );
 
+    // 4) Commit de la transacción
+    await db.runAsync("COMMIT;");
+
     console.log(`✅ Recibo ${numero_recibo} cancelado y factura ${facturaId} marcada como sin pagar`);
+    return facturaId;
   } catch (err) {
+    // En caso de fallo, revertir cambios y propagar
+    await db.runAsync("ROLLBACK;");
     console.error(`❌ Error cancelando recibo y actualizando factura:`, err);
+    throw err;
   }
 };
 
@@ -511,11 +522,12 @@ export const cancelarReciboYFactura = async (numero_recibo) => {
 export const insertReciboCabecera = async (fecha, cliente_id, monto_total) => {
   const db = getDB();
   await db.runAsync(
-    `INSERT INTO RecibosCabecera (fecha, cliente_id, monto_total) VALUES (?, ?, ?);`,
+    `INSERT INTO RecibosCabecera (fecha, cliente_id, monto_total, numero_recibo) VALUES (?, ?, ?, '');`,
     [fecha, cliente_id, monto_total]
   );
   const [{ id }] = await db.getAllAsync("SELECT last_insert_rowid() AS id;");
   const numero = `R${String(id).padStart(6, '0')}`;
+  console.log("numero de recibo ", numero)
   await db.runAsync("UPDATE RecibosCabecera SET numero_recibo = ? WHERE id = ?;", [numero, id]);
   return { id, numero_recibo: numero };
 };
@@ -566,5 +578,44 @@ export const abonarCuenta = async (cliente_id, montoAbono) => {
   } catch (err) {
     await db.runAsync("ROLLBACK;");
     throw err;
+  }
+};
+
+// Obtener todas las cabeceras de recibos
+export const getAllRecibosCabecera = async () => {
+  const db = getDB();
+  try {
+    return await db.getAllAsync(
+      `SELECT
+         id,
+         numero_recibo,
+         fecha,
+         cliente_id,
+         monto_total
+       FROM RecibosCabecera
+       ORDER BY id ASC;`
+    );
+  } catch (err) {
+    console.error('Error al obtener RecibosCabecera:', err);
+    return [];
+  }
+};
+
+// Obtener todos los detalles de recibos
+export const getAllRecibosDetalle = async () => {
+  const db = getDB();
+  try {
+    return await db.getAllAsync(
+      `SELECT
+         id,
+         recibo_id,
+         factura_id,
+         monto_aplicado
+       FROM RecibosDetalle
+       ORDER BY id ASC;`
+    );
+  } catch (err) {
+    console.error('Error al obtener RecibosDetalle:', err);
+    return [];
   }
 };

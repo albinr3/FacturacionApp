@@ -5,17 +5,35 @@ import {
   getProveedores,
   getFacturas,
   getDetalleFacturaByNumero,
-  getAllRecibos,
+  getAllRecibosDetalle,
+  getAllRecibosCabecera
 } from './sqlMethods';
 
 // Helper: Upsert en batch con minimal returning
-async function upsertBatch(table, records) {
-  if (!records || records.length === 0) return;
-  const { error } = await supabase
+// sync.js (o donde lo tengas definido)
+// helper genérico
+async function upsertBatch(table, records, conflictKeys = ['id']) {
+  if (!records?.length) return;
+  console.log(`🔄 Upserting ${records.length} registros en "${table}"…`);
+
+  const { data, error } = await supabase
     .from(table)
-    .upsert(records, { returning: 'minimal' });
-  if (error) console.error(`Error sincronizando ${table}:`, error);
+    .upsert(records, {
+      onConflict: conflictKeys,
+      returning: 'minimal'
+    });
+
+  if (error) {
+    console.error(`❌ Error sincronizando "${table}":`, error);
+    throw error;
+  }
+  console.log(`✅ "${table}" sincronizado correctamente.`);
+  return data;
 }
+
+
+
+
 
 // Sincronizaciones específicas por tabla
 export async function syncClientes() {
@@ -25,7 +43,7 @@ export async function syncClientes() {
 
 export async function syncProductos() {
   const productos = await getProductos();
-  await upsertBatch('productos', productos);
+  await upsertBatch('productos', productos, ['sku']);
 }
 
 export async function syncProveedores() {
@@ -37,7 +55,8 @@ export async function syncFacturas() {
   const facturas = await getFacturas();
   // eliminamos campo 'cliente' si existe
   const payload = facturas.map(({ cliente, ...f }) => f);
-  await upsertBatch('facturas', payload);
+  // indicamos que la clave de conflicto es `numero_factura`
+  await upsertBatch('facturas', payload, ['numero_factura']);
 }
 
 export async function syncDetalle() {
@@ -52,21 +71,33 @@ export async function syncDetalle() {
   await upsertBatch('detallefactura', allDetalles);
 }
 
-export async function syncRecibos() {
-  const recibos = await getAllRecibos();
-  // Eliminamos propiedad 'cliente' que viene del JOIN
-  const payload = recibos.map(({ cliente, direccion, ...r }) => r);
-  await upsertBatch('recibos', payload);
+export async function syncRecibosCabecera() {
+  const reciboscabecera = await getAllRecibosCabecera();
+  // Descartamos columnas extra que no existan en Supabase
+  const payload = reciboscabecera.map(({ cliente, direccion, ...c }) => c);
+  const { error } = await supabase
+    .from('reciboscabecera')
+    .upsert(payload, { onConflict: ['id'], returning: 'minimal' });
+  if (error) console.error('Error sincronizando RecibosCabecera:', error);
+}
+
+export async function syncRecibosDetalle() {
+  const recibosdetalle = await getAllRecibosDetalle();
+  const payload = recibosdetalle.map(({ factura, ...d }) => d);
+  const { error } = await supabase
+    .from('recibosdetalle')
+    .upsert(payload, { onConflict: ['id'], returning: 'minimal' });
+  if (error) console.error('Error sincronizando RecibosDetalle:', error);
 }
 
 // Sincronización completa (opcional)
 export async function syncWithSupabase() {
-  await Promise.all([
-    syncClientes(),
-    syncProductos(),
-    syncProveedores(),
-    syncFacturas(),
-    syncDetalle(),
-    syncRecibos(),
-  ]);
+  await syncClientes();
+  await syncProductos();
+  await syncProveedores();
+  await syncFacturas();
+  await syncDetalle();
+  await syncRecibosCabecera();
+  await syncRecibosDetalle();
 }
+
