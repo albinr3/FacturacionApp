@@ -13,6 +13,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as Network from "expo-network";
+import { initDB } from "../database/database";
+
 
 // Importar métodos SQL y sincronización con Supabase
 import {
@@ -20,7 +22,7 @@ import {
   insertCliente,
   updateCliente,
 } from "../database/sqlMethods";
-import { syncWithSupabase } from "../database/sync";
+import { syncWithSupabase, populateLocalDatabaseFromSupabase } from "../database/sync";
 
 const Customers = ({ navigation }) => {
   // Inicialmente, el listado de clientes se carga desde la base de datos local
@@ -140,6 +142,12 @@ const Customers = ({ navigation }) => {
         <Text style={styles.textTitle}>CLIENTES</Text>
         <Pressable onPress={() => abrirModal()} style={styles.botonAgregar}>
           <MaterialCommunityIcons name="plus" color="#fff" size={24} />
+        </Pressable>
+        <Pressable onPress={async () => {
+          await initDB()
+          await populateLocalDatabaseFromSupabase()
+        } } style={styles.botonAgregar}>
+          <MaterialCommunityIcons name="plus" color="#ff0000" size={24} />
         </Pressable>
       </View>
 

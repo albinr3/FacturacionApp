@@ -23,7 +23,9 @@ export const initDB = async () => {
         descripcion TEXT NOT NULL,
         referencia TEXT,
         precio REAL NOT NULL,
-        existencia INTEGER NOT NULL
+        existencia INTEGER NOT NULL,
+        proveedor_id INTEGER,
+        FOREIGN KEY(proveedor_id) REFERENCES Proveedores(id)
       );
     `);
 
@@ -40,14 +42,16 @@ export const initDB = async () => {
     // Tabla de Facturas
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS Facturas (
-        numero_factura INTEGER PRIMARY KEY AUTOINCREMENT,
-        monto REAL NOT NULL,
-        fecha TEXT NOT NULL,
-        condicion TEXT NOT NULL, -- 'credito' o 'contado'
-        cliente_id INTEGER,
-        pagada INTEGER DEFAULT 0,
-        FOREIGN KEY (cliente_id) REFERENCES Clientes(id)
-      );
+  numero_factura INTEGER PRIMARY KEY AUTOINCREMENT,
+  monto          REAL    NOT NULL,
+  fecha          TEXT    NOT NULL,
+  condicion      TEXT    NOT NULL,
+  cliente_id     INTEGER,
+  pagada         INTEGER DEFAULT 0,
+  cancelada      INTEGER DEFAULT 0,
+  saldo          REAL    DEFAULT 0,
+  FOREIGN KEY(cliente_id) REFERENCES Clientes(id)
+);
     `);
 
     // Tabla de DetalleFactura
@@ -89,8 +93,8 @@ export const initDB = async () => {
 );
     `);
 
-        // Tabla de RecibosDetalle
-        await db.execAsync(`
+    // Tabla de RecibosDetalle
+    await db.execAsync(`
           CREATE TABLE IF NOT EXISTS RecibosDetalle (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   recibo_id        INTEGER NOT NULL,
